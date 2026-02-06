@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bob Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+    background: #0d1117;
+    color: #c9d1d9;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    flex-shrink: 0;
+  }
+
+  .status-bar .left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .status-bar h1 {
+    font-size: 16px;
+    color: #58a6ff;
+    font-weight: 600;
+  }
+
+  .status-bar .meta {
+    font-size: 12px;
+    color: #8b949e;
+  }
+
+  .status-bar .right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .bot-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+
+  .bot-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3fb950;
+    box-shadow: 0 0 6px #3fb950;
+  }
+
+  .bot-dot.offline {
+    background: #f85149;
+    box-shadow: 0 0 6px #f85149;
+  }
+
+  .btn {
+    padding: 4px 12px;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    background: #21262d;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .btn:hover { background: #30363d; }
+  .btn.danger { border-color: #f85149; color: #f85149; }
+  .btn.danger:hover { background: #f8514922; }
+
+  /* Main area */
+  .main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Activity feed */
+  .activity {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #30363d;
+    min-width: 0;
+  }
+
+  .panel-header {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    flex-shrink: 0;
+  }
+
+  .activity-feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .event {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+
+  .event .time {
+    color: #484f58;
+    margin-right: 8px;
+  }
+
+  .event .tag {
+    display: inline-block;
+    padding: 0 5px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 6px;
+  }
+
+  .event.tool-call { background: #161b2288; }
+  .event.tool-call .tag { background: #8957e5; color: #fff; }
+
+  .event.tool-result { background: #161b2244; }
+  .event.tool-result .tag { background: #30363d; color: #8b949e; }
+
+  .event.message-in { background: #0d419d22; }
+  .event.message-in .tag { background: #1f6feb; color: #fff; }
+
+  .event.message-out { background: #23863622; }
+  .event.message-out .tag { background: #238636; color: #fff; }
+
+  .event.task-update { background: #9e6a0322; }
+  .event.task-update .tag { background: #d29922; color: #0d1117; }
+
+  .event.bot-status { background: #f8514922; }
+  .event.bot-status .tag { background: #f85149; color: #fff; }
+
+  /* Chat panel */
+  .chat {
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .msg {
+    max-width: 90%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  .msg.user {
+    align-self: flex-end;
+    background: #1f6feb;
+    color: #fff;
+    border-bottom-right-radius: 2px;
+  }
+
+  .msg.assistant {
+    align-self: flex-start;
+    background: #21262d;
+    border-bottom-left-radius: 2px;
+  }
+
+  .msg.thinking {
+    align-self: flex-start;
+    background: #21262d;
+    color: #8b949e;
+    font-style: italic;
+  }
+
+  .chat-input {
+    display: flex;
+    padding: 8px;
+    gap: 8px;
+    border-top: 1px solid #30363d;
+    background: #161b22;
+    flex-shrink: 0;
+  }
+
+  .chat-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .chat-input input:focus { border-color: #58a6ff; }
+
+  .chat-input button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: #238636;
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .chat-input button:hover { background: #2ea043; }
+  .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Task bar */
+  .task-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: #161b22;
+    border-top: 1px solid #30363d;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+
+  .task-bar .label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8b949e;
+    white-space: nowrap;
+  }
+
+  .task-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    white-space: nowrap;
+    background: #21262d;
+    border: 1px solid #30363d;
+    cursor: default;
+  }
+
+  .task-chip .icon { font-size: 10px; }
+  .task-chip.completed { border-color: #238636; color: #3fb950; }
+  .task-chip.running { border-color: #d29922; color: #d29922; }
+  .task-chip.pending { border-color: #8b949e; color: #8b949e; }
+  .task-chip.failed { border-color: #f85149; color: #f85149; }
+
+  .no-tasks {
+    font-size: 12px;
+    color: #484f58;
+    font-style: italic;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+</style>
+</head>
+<body>
+
+<div class="status-bar">
+  <div class="left">
+    <h1>Bob Dashboard</h1>
+    <span class="meta" id="status-meta">loading...</span>
+  </div>
+  <div class="right">
+    <div class="bot-indicator">
+      <div class="bot-dot" id="bot-dot"></div>
+      <span id="bot-label">Bot: ...</span>
+    </div>
+    <button class="btn" id="bot-toggle" onclick="toggleBot()">...</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="activity">
+    <div class="panel-header">Activity Feed</div>
+    <div class="activity-feed" id="activity-feed"></div>
+  </div>
+  <div class="chat">
+    <div class="panel-header">Chat with Bob</div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="chat-input">
+      <input type="text" id="chat-input" placeholder="Message Bob..." onkeydown="if(event.key==='Enter')sendMessage()" />
+      <button id="send-btn" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<div class="task-bar">
+  <span class="label">Tasks:</span>
+  <div id="task-list"><span class="no-tasks">No tasks yet</span></div>
+</div>
+
+<script>
+  let botRunning = false;
+
+  // --- Status ---
+  async function fetchStatus() {
+    try {
+      const r = await fetch('/api/status');
+      const s = await r.json();
+      document.getElementById('status-meta').textContent =
+        `${s.model} · uptime ${formatUptime(s.uptime)}`;
+      botRunning = s.botRunning;
+      updateBotUI();
+    } catch {}
+  }
+
+  function formatUptime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  }
+
+  function updateBotUI() {
+    const dot = document.getElementById('bot-dot');
+    const label = document.getElementById('bot-label');
+    const btn = document.getElementById('bot-toggle');
+
+    if (botRunning) {
+      dot.className = 'bot-dot';
+      label.textContent = 'Bot: Online';
+      btn.textContent = 'Stop';
+      btn.className = 'btn danger';
+    } else {
+      dot.className = 'bot-dot offline';
+      label.textContent = 'Bot: Offline';
+      btn.textContent = 'Start';
+      btn.className = 'btn';
+    }
+  }
+
+  async function toggleBot() {
+    const endpoint = botRunning ? '/api/bot/stop' : '/api/bot/start';
+    try {
+      await fetch(endpoint, { method: 'POST' });
+      botRunning = !botRunning;
+      updateBotUI();
+    } catch (e) {
+      console.error('Bot toggle failed:', e);
+    }
+  }
+
+  // --- Activity Feed (SSE) ---
+  function connectSSE() {
+    const es = new EventSource('/api/events');
+    const feed = document.getElementById('activity-feed');
+
+    es.onmessage = (e) => {
+      const event = JSON.parse(e.data);
+      appendEvent(feed, event);
+
+      // Update bot status from events
+      if (event.type === 'bot:status') {
+        botRunning = event.data.running;
+        updateBotUI();
+      }
+
+      // Update task list from events
+      if (event.type === 'task:update') {
+        fetchTasks();
+      }
+    };
+
+    es.onerror = () => {
+      // Reconnect after 3s
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+  }
+
+  function appendEvent(feed, event) {
+    const div = document.createElement('div');
+    const cls = event.type.replace(':', '-');
+    div.className = `event ${cls}`;
+
+    const time = new Date(event.timestamp).toLocaleTimeString();
+    let body = '';
+
+    switch (event.type) {
+      case 'tool:call':
+        body = `<span class="tag">TOOL</span>${event.data.tool}`;
+        break;
+      case 'tool:result': {
+        const ok = event.data.success ? 'OK' : 'ERR';
+        const preview = String(event.data.output || '').slice(0, 120);
+        body = `<span class="tag">${ok}</span>${event.data.tool}: ${escapeHtml(preview)}`;
+        break;
+      }
+      case 'message:in': {
+        const src = event.data.source === 'dashboard' ? 'DASH' : 'TG';
+        const preview = String(event.data.text || '').slice(0, 120);
+        body = `<span class="tag">${src}</span>${escapeHtml(preview)}`;
+        break;
+      }
+      case 'message:out': {
+        const preview = String(event.data.text || '').slice(0, 120);
+        body = `<span class="tag">BOB</span>${escapeHtml(preview)}`;
+        break;
+      }
+      case 'task:update':
+        body = `<span class="tag">${event.data.status.toUpperCase()}</span>${escapeHtml(event.data.description || '')}`;
+        break;
+      case 'bot:status':
+        body = `<span class="tag">BOT</span>${event.data.running ? 'Started' : 'Stopped'}`;
+        break;
+      default:
+        body = `<span class="tag">${event.type}</span>${JSON.stringify(event.data).slice(0, 100)}`;
+    }
+
+    div.innerHTML = `<span class="time">${time}</span>${body}`;
+    feed.appendChild(div);
+
+    // Auto-scroll
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  // --- Chat ---
+  async function loadHistory() {
+    try {
+      const r = await fetch('/api/history');
+      const history = await r.json();
+      const container = document.getElementById('chat-messages');
+      container.innerHTML = '';
+      for (const entry of history) {
+        addChatBubble(entry.role, entry.content);
+      }
+    } catch {}
+  }
+
+  function addChatBubble(role, text) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+    div.textContent = text.length > 2000 ? text.slice(0, 2000) + '...' : text;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    return div;
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    addChatBubble('user', text);
+
+    const thinking = addChatBubble('thinking', 'thinking...');
+    const sendBtn = document.getElementById('send-btn');
+    sendBtn.disabled = true;
+    input.disabled = true;
+
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const data = await r.json();
+      thinking.remove();
+
+      if (data.error) {
+        addChatBubble('assistant', `Error: ${data.error}`);
+      } else {
+        addChatBubble('assistant', data.text);
+      }
+    } catch (e) {
+      thinking.remove();
+      addChatBubble('assistant', `Error: ${e.message}`);
+    } finally {
+      sendBtn.disabled = false;
+      input.disabled = false;
+      input.focus();
+    }
+  }
+
+  // --- Tasks ---
+  async function fetchTasks() {
+    try {
+      const r = await fetch('/api/tasks');
+      const tasks = await r.json();
+      renderTasks(tasks);
+    } catch {}
+  }
+
+  function renderTasks(tasks) {
+    const container = document.getElementById('task-list');
+    if (tasks.length === 0) {
+      container.innerHTML = '<span class="no-tasks">No tasks yet</span>';
+      return;
+    }
+
+    container.innerHTML = '';
+    const statusIcons = {
+      completed: '\u2713',
+      running: '\u25CB',
+      pending: '\u25CB',
+      failed: '\u2717',
+    };
+
+    for (const t of tasks.slice(-8)) {
+      const chip = document.createElement('span');
+      chip.className = `task-chip ${t.status}`;
+      chip.title = `${t.description}\nStatus: ${t.status}${t.result ? '\n\nResult: ' + t.result.slice(0, 200) : ''}`;
+      chip.innerHTML = `<span class="icon">${statusIcons[t.status] || '?'}</span>${t.description.slice(0, 40)}`;
+      container.appendChild(chip);
+    }
+  }
+
+  // --- Init ---
+  fetchStatus();
+  setInterval(fetchStatus, 10000);
+  loadHistory();
+  fetchTasks();
+  connectSSE();
+</script>
+
+</body>
+</html>

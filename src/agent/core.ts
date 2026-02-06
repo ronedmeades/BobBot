@@ -1,0 +1,194 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { config } from "../config.js";
+import { toolDefinitions } from "./tools.js";
+import { executeTool, type ToolContext } from "./tool-executor.js";
+import { memory, type ConversationEntry, type UserProfile } from "./memory.js";
+import { events } from "../dashboard/events.js";
+
+function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
+  const userName = profile?.name ?? "mate";
+  const userNotes = profile?.notes ? `\nWhat you know about them: ${profile.notes}` : "";
+  const userPrefs = profile?.preferences && Object.keys(profile.preferences).length > 0
+    ? `\nTheir preferences: ${JSON.stringify(profile.preferences)}`
+    : "";
+
+  const notesList = notes.length > 0
+    ? `\n\nYour saved notes: ${notes.join(", ")}\nUse load_note to recall any of these.`
+    : "\n\nYou have no saved notes yet.";
+
+  return `You are Bob, an autonomous AI personal agent. You help your user by completing tasks independently.
+
+You are talking to ${userName}.${userNotes}${userPrefs}
+
+Key behaviors:
+- You are proactive, resourceful, and thorough
+- When given a task, you figure out how to do it using your tools
+- You explore APIs, read documentation, download data, and produce results
+- You give concise progress updates but save the detail for the final report
+- If you hit a wall, say so clearly and explain what you need
+- You have a sense of humor — you're a mate, not a corporate bot
+- Address the user by name when it feels natural (don't overdo it)
+
+Memory:
+- You have persistent memory that survives restarts
+- Use save_note to remember important information, findings, or task results
+- Use load_note and list_notes to recall what you've previously saved
+- Use update_user_profile when you learn something new about the user (their name, preferences, what they're working on)
+- Be proactive about saving useful information — if you did research or completed a task, save the results
+${notesList}
+
+Available tools let you: fetch URLs, read/write files, list directories, run shell commands, and manage your memory.
+Use them freely to accomplish tasks.`;
+}
+
+const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+
+export interface AgentResponse {
+  text: string;
+  toolsUsed: string[];
+}
+
+/**
+ * Run the agent loop: send a message, let Claude use tools, repeat until done.
+ */
+export async function runAgent(
+  userId: string,
+  userMessage: string,
+  source: "telegram" | "dashboard" = "telegram"
+): Promise<AgentResponse> {
+  events.emitEvent("message:in", { userId, text: userMessage, source });
+
+  // Load user profile and notes for dynamic prompt
+  let profile = await memory.loadProfile(userId);
+  const notes = await memory.listNotes();
+
+  // Auto-create profile if it doesn't exist
+  if (!profile) {
+    profile = {
+      userId,
+      name: "mate",
+      chatId: 0,
+      firstSeen: new Date().toISOString(),
+      lastSeen: new Date().toISOString(),
+      preferences: {},
+      notes: "",
+    };
+    await memory.saveProfile(profile);
+  } else {
+    profile.lastSeen = new Date().toISOString();
+    await memory.saveProfile(profile);
+  }
+
+  const systemPrompt = buildSystemPrompt(profile, notes);
+  const toolContext: ToolContext = { userId };
+
+  // Load conversation history for context
+  const history = await memory.loadHistory(userId);
+
+  // Build messages from history + new message
+  const messages: Anthropic.MessageParam[] = [
+    ...history.slice(-20).map(
+      (entry): Anthropic.MessageParam => ({
+        role: entry.role,
+        content: entry.content,
+      })
+    ),
+    { role: "user", content: userMessage },
+  ];
+
+  // Save the user message to memory
+  await memory.appendHistory(userId, {
+    role: "user",
+    content: userMessage,
+    timestamp: new Date().toISOString(),
+  });
+
+  const toolsUsed: string[] = [];
+  let rounds = 0;
+
+  // Agentic loop — keep going while Claude wants to use tools
+  while (rounds < config.agent.maxToolRounds) {
+    rounds++;
+
+    const response = await client.messages.create({
+      model: config.anthropic.model,
+      max_tokens: 4096,
+      system: systemPrompt,
+      tools: toolDefinitions,
+      messages,
+    });
+
+    // Collect all text blocks from the response
+    const textBlocks = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text);
+
+    // Collect all tool use blocks
+    const toolUseBlocks = response.content.filter(
+      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+    );
+
+    // If no tool calls, we're done
+    if (response.stop_reason === "end_turn" || toolUseBlocks.length === 0) {
+      const finalText = textBlocks.join("\n") || "(No response)";
+
+      await memory.appendHistory(userId, {
+        role: "assistant",
+        content: finalText,
+        timestamp: new Date().toISOString(),
+      });
+
+      events.emitEvent("message:out", { userId, text: finalText });
+
+      return { text: finalText, toolsUsed };
+    }
+
+    // Add assistant message with tool calls to conversation
+    messages.push({ role: "assistant", content: response.content });
+
+    // Execute each tool call and collect results
+    const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
+      toolUseBlocks.map(async (toolUse) => {
+        toolsUsed.push(toolUse.name);
+        console.log(`  [tool] ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 100)})`);
+
+        events.emitEvent("tool:call", { tool: toolUse.name, input: toolUse.input, userId });
+
+        const result = await executeTool(
+          toolUse.name,
+          toolUse.input as Record<string, unknown>,
+          toolContext
+        );
+
+        events.emitEvent("tool:result", {
+          tool: toolUse.name,
+          success: result.success,
+          output: result.output.slice(0, 500),
+        });
+
+        return {
+          type: "tool_result" as const,
+          tool_use_id: toolUse.id,
+          content: result.output,
+          is_error: !result.success,
+        };
+      })
+    );
+
+    // Add tool results to conversation
+    messages.push({ role: "user", content: toolResults });
+  }
+
+  // If we hit the max rounds, return what we have
+  const fallback = "I've been working on this for a while and hit my tool limit. Here's what I have so far — let me know if you want me to continue.";
+
+  await memory.appendHistory(userId, {
+    role: "assistant",
+    content: fallback,
+    timestamp: new Date().toISOString(),
+  });
+
+  events.emitEvent("message:out", { userId, text: fallback });
+
+  return { text: fallback, toolsUsed };
+}
