@@ -2,6 +2,8 @@ import { Bot } from "grammy";
 import { config } from "../config.js";
 import { runAgent } from "../agent/core.js";
 import { submitTask, setNotifier } from "../tasks/runner.js";
+import { setSchedulerNotifier } from "../tasks/scheduler.js";
+import { memory } from "../agent/memory.js";
 import { events } from "../dashboard/events.js";
 
 let bot: Bot | null = null;
@@ -10,14 +12,16 @@ let running = false;
 export function createBot(): Bot {
   bot = new Bot(config.telegram.botToken);
 
-  // Wire up the notifier so background tasks can message the user
-  setNotifier(async (chatId: number, message: string) => {
+  // Wire up notifiers so background tasks and scheduler can message users
+  const sendMessage = async (chatId: number, message: string): Promise<void> => {
     if (!bot) return;
     const chunks = splitMessage(message, 4000);
     for (const chunk of chunks) {
       await bot.api.sendMessage(chatId, chunk);
     }
-  });
+  };
+  setNotifier(sendMessage);
+  setSchedulerNotifier(sendMessage);
 
   // /start command
   bot.command("start", async (ctx) => {
@@ -68,6 +72,13 @@ export function createBot(): Bot {
   bot.on("message:text", async (ctx) => {
     const userId = String(ctx.from?.id ?? "unknown");
     const text = ctx.message.text;
+
+    // Save chatId to profile so scheduler/proactive messages can reach the user
+    const profile = await memory.loadProfile(userId);
+    if (profile && profile.chatId !== ctx.chat.id) {
+      profile.chatId = ctx.chat.id;
+      await memory.saveProfile(profile);
+    }
 
     // Keep typing indicator alive every 4 seconds until the agent is done
     const typingInterval = setInterval(() => {
