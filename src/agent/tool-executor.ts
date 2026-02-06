@@ -20,6 +20,12 @@ import {
   handleBatchListPosters,
   handleBatchListStatus,
 } from "../skills/batch-lister.js";
+import {
+  handleBackupBob,
+  handleRestoreBob,
+  handleListBackups,
+} from "../skills/backup.js";
+import { executeLocalTool } from "../skills/local-loader.js";
 
 interface ToolResult {
   success: boolean;
@@ -82,8 +88,19 @@ export async function executeTool(
         return await handleBatchListPosters(input);
       case "batch_list_status":
         return await handleBatchListStatus(input);
-      default:
+      // Backup & restore skills
+      case "backup_bob":
+        return await handleBackupBob(input);
+      case "restore_bob":
+        return await handleRestoreBob(input);
+      case "list_backups":
+        return await handleListBackups(input);
+      default: {
+        // Try local skills before giving up
+        const localResult = await executeLocalTool(name, input, context);
+        if (localResult) return localResult;
         return { success: false, output: `Unknown tool: ${name}` };
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

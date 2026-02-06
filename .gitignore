@@ -38,6 +38,9 @@ desktop.ini
 memory/
 data/
 
+# Personal / local-only (never committed)
+local/
+
 # Logs
 *.log
 logs/

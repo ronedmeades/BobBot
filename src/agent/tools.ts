@@ -2,9 +2,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { imageToolDefinitions } from "../skills/image-processing.js";
 import { ebayToolDefinitions } from "../skills/ebay-listing.js";
 import { batchListerToolDefinitions } from "../skills/batch-lister.js";
+import { backupToolDefinitions } from "../skills/backup.js";
+import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
-// Tool definitions that Claude can use
-export const toolDefinitions: Anthropic.Tool[] = [
+// Built-in tool definitions
+const builtinTools: Anthropic.Tool[] = [
   {
     name: "fetch_url",
     description:
@@ -174,4 +176,25 @@ export const toolDefinitions: Anthropic.Tool[] = [
   ...ebayToolDefinitions,
   // Batch workflow skills
   ...batchListerToolDefinitions,
+  // Backup & restore skills
+  ...backupToolDefinitions,
 ];
+
+/**
+ * All tool definitions including local skills.
+ * Must call initTools() before using this.
+ */
+export let toolDefinitions: Anthropic.Tool[] = [...builtinTools];
+
+/**
+ * Initialize tools — loads local skills from local/skills/.
+ * Call once at startup before the first agent loop.
+ */
+export async function initTools(): Promise<void> {
+  await loadLocalSkills();
+  const localTools = getLocalToolDefinitions();
+  toolDefinitions = [...builtinTools, ...localTools];
+  if (localTools.length > 0) {
+    console.log(`Total tools available: ${toolDefinitions.length} (${builtinTools.length} built-in + ${localTools.length} local)`);
+  }
+}

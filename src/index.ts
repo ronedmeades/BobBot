@@ -1,6 +1,7 @@
 import { config, validateConfig } from "./config.js";
 import { createBot, startBot, stopBot } from "./bot/telegram.js";
 import { memory } from "./agent/memory.js";
+import { initTools } from "./agent/tools.js";
 import { startDashboard } from "./dashboard/server.js";
 import { events } from "./dashboard/events.js";
 
@@ -9,6 +10,7 @@ async function main(): Promise<void> {
 
   validateConfig();
   await memory.init();
+  await initTools();
 
   // Seed owner's profile if it doesn't exist yet
   const ownerId = config.owner.userId;
