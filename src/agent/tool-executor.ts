@@ -25,6 +25,38 @@ import {
   handleRestoreBob,
   handleListBackups,
 } from "../skills/backup.js";
+import {
+  handleAddScheduledTask,
+  handleRemoveScheduledTask,
+  handleListScheduledTasks,
+  handleRunScheduledTask,
+} from "../skills/scheduler.js";
+import {
+  handleCheckEmail,
+  handleReadEmail,
+  handleSendEmail,
+  handleSearchEmail,
+  handleGetEmailSummary,
+} from "../skills/gmail.js";
+import {
+  handleWatchUrl,
+  handleWatchKeywords,
+  handleListWatches,
+  handleRemoveWatch,
+  handleCheckWatchesNow,
+} from "../skills/web-monitor.js";
+import {
+  handleAnalyzeImage,
+  handleAnalyzePosterForListing,
+} from "../skills/vision.js";
+import {
+  handleSavePersonalData,
+  handleLoadPersonalData,
+  handleListPersonalData,
+  handleDeletePersonalData,
+  handleFillFormFields,
+  handleSuggestFormMapping,
+} from "../skills/form-filler.js";
 import { executeLocalTool } from "../skills/local-loader.js";
 
 interface ToolResult {
@@ -95,6 +127,55 @@ export async function executeTool(
         return await handleRestoreBob(input);
       case "list_backups":
         return await handleListBackups(input);
+      // Scheduled tasks skills
+      case "add_scheduled_task":
+        return await handleAddScheduledTask(input);
+      case "remove_scheduled_task":
+        return await handleRemoveScheduledTask(input);
+      case "list_scheduled_tasks":
+        return await handleListScheduledTasks();
+      case "run_scheduled_task":
+        return await handleRunScheduledTask(input);
+      // Gmail skills
+      case "check_email":
+        return await handleCheckEmail(input);
+      case "read_email":
+        return await handleReadEmail(input);
+      case "send_email":
+        return await handleSendEmail(input);
+      case "search_email":
+        return await handleSearchEmail(input);
+      case "get_email_summary":
+        return await handleGetEmailSummary(input);
+      // Web monitoring skills
+      case "watch_url":
+        return await handleWatchUrl(input);
+      case "watch_keywords":
+        return await handleWatchKeywords(input);
+      case "list_watches":
+        return await handleListWatches();
+      case "remove_watch":
+        return await handleRemoveWatch(input);
+      case "check_watches_now":
+        return await handleCheckWatchesNow();
+      // Vision/image analysis skills
+      case "analyze_image":
+        return await handleAnalyzeImage(input);
+      case "analyze_poster_for_listing":
+        return await handleAnalyzePosterForListing(input);
+      // Form filling & personal data vault
+      case "save_personal_data":
+        return await handleSavePersonalData(input);
+      case "load_personal_data":
+        return await handleLoadPersonalData(input);
+      case "list_personal_data":
+        return await handleListPersonalData();
+      case "delete_personal_data":
+        return await handleDeletePersonalData(input);
+      case "fill_form_fields":
+        return await handleFillFormFields(input);
+      case "suggest_form_mapping":
+        return await handleSuggestFormMapping(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

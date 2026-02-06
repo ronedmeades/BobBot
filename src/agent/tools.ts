@@ -3,6 +3,11 @@ import { imageToolDefinitions } from "../skills/image-processing.js";
 import { ebayToolDefinitions } from "../skills/ebay-listing.js";
 import { batchListerToolDefinitions } from "../skills/batch-lister.js";
 import { backupToolDefinitions } from "../skills/backup.js";
+import { schedulerToolDefinitions } from "../skills/scheduler.js";
+import { gmailToolDefinitions } from "../skills/gmail.js";
+import { webMonitorToolDefinitions } from "../skills/web-monitor.js";
+import { visionToolDefinitions } from "../skills/vision.js";
+import { formFillerToolDefinitions } from "../skills/form-filler.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -178,6 +183,16 @@ const builtinTools: Anthropic.Tool[] = [
   ...batchListerToolDefinitions,
   // Backup & restore skills
   ...backupToolDefinitions,
+  // Scheduled tasks skills
+  ...schedulerToolDefinitions,
+  // Gmail skills
+  ...gmailToolDefinitions,
+  // Web monitoring skills
+  ...webMonitorToolDefinitions,
+  // Vision/image analysis skills
+  ...visionToolDefinitions,
+  // Form filling & personal data vault
+  ...formFillerToolDefinitions,
 ];
 
 /**

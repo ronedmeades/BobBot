@@ -35,8 +35,8 @@ async function main(): Promise<void> {
   // Create and start Telegram bot
   createBot();
 
-  // Start scheduler (auto-backup, future cron tasks)
-  startScheduler();
+  // Start scheduler (auto-backup, scheduled tasks, web monitors)
+  await startScheduler();
 
   // Graceful shutdown
   const stop = () => {

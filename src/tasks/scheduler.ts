@@ -1,9 +1,10 @@
 import { stat } from "node:fs/promises";
-import { resolve } from "node:path";
 import { config } from "../config.js";
 import { memory } from "../agent/memory.js";
 import { handleBackupBob } from "../skills/backup.js";
 import { events } from "../dashboard/events.js";
+import { checkScheduledTasks, initScheduledTasks } from "../skills/scheduler.js";
+import { checkAllWatches } from "../skills/web-monitor.js";
 
 /**
  * Simple scheduler for recurring tasks.
@@ -142,10 +143,39 @@ async function checkAndRunBackup(): Promise<void> {
 }
 
 /**
+ * Run all hourly checks: backup, scheduled tasks, web monitors.
+ */
+async function runAllChecks(): Promise<void> {
+  await checkAndRunBackup();
+
+  // Run user-defined scheduled tasks
+  try {
+    await checkScheduledTasks();
+  } catch (err) {
+    console.error("[scheduler] Scheduled tasks error:", err);
+  }
+
+  // Check web monitors for changes
+  try {
+    const changes = await checkAllWatches();
+    if (changes.length > 0) {
+      await sendOwnerMessage(
+        `Web monitor alert!\n\n${changes.join("\n\n")}`
+      );
+    }
+  } catch (err) {
+    console.error("[scheduler] Web monitor error:", err);
+  }
+}
+
+/**
  * Start the scheduler. Checks hourly if any scheduled tasks are due.
  */
-export function startScheduler(): void {
+export async function startScheduler(): Promise<void> {
   if (schedulerTimer) return; // Already running
+
+  // Initialize scheduled tasks from disk
+  await initScheduledTasks();
 
   const backupPath = process.env.BACKUP_PATH;
   const intervalDays = getBackupIntervalDays();
@@ -156,14 +186,14 @@ export function startScheduler(): void {
 
   // Run first check after 30 seconds (let everything else start up first)
   setTimeout(() => {
-    checkAndRunBackup().catch((err) => {
+    runAllChecks().catch((err) => {
       console.error("[scheduler] Error:", err);
     });
   }, 30_000);
 
   // Then check every hour
   schedulerTimer = setInterval(() => {
-    checkAndRunBackup().catch((err) => {
+    runAllChecks().catch((err) => {
       console.error("[scheduler] Error:", err);
     });
   }, CHECK_INTERVAL_MS);
