@@ -89,6 +89,10 @@ import {
   handleRemoveEvent,
   handleCompleteEvent,
 } from "../skills/calendar.js";
+import {
+  handleGenerateSocialPost,
+  handleSuggestSocialHashtags,
+} from "../skills/social-media.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -263,6 +267,11 @@ export async function executeTool(
         return await handleRemoveEvent(input);
       case "complete_event":
         return await handleCompleteEvent(input);
+      // Social media post generation
+      case "generate_social_post":
+        return await handleGenerateSocialPost(input);
+      case "suggest_social_hashtags":
+        return await handleSuggestSocialHashtags(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

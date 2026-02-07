@@ -12,6 +12,7 @@ import { taskManagerToolDefinitions } from "../skills/task-manager.js";
 import { inventoryToolDefinitions } from "../skills/inventory.js";
 import { pdfFormToolDefinitions } from "../skills/pdf-forms.js";
 import { calendarToolDefinitions } from "../skills/calendar.js";
+import { socialMediaToolDefinitions } from "../skills/social-media.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -220,6 +221,8 @@ const builtinTools: ToolDefinition[] = [
   ...pdfFormToolDefinitions,
   // Calendar & events
   ...calendarToolDefinitions,
+  // Social media post generation
+  ...socialMediaToolDefinitions,
 ];
 
 /**
