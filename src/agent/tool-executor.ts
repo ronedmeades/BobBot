@@ -157,6 +157,18 @@ import {
   handleSendSms,
   handleGetCallStatus,
 } from "../skills/phone.js";
+import {
+  handleMarketplaceListPlatforms,
+  handleMarketplaceTestConnection,
+  handleMarketplaceGetOrders,
+  handleMarketplaceGetOrder,
+  handleMarketplaceShipOrder,
+  handleMarketplaceGetMessages,
+  handleMarketplaceSendMessage,
+  handleMarketplaceOrderSummary,
+  handleMarketplaceGetUnshipped,
+  handleMarketplaceBulkShip,
+} from "../skills/marketplace.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -432,6 +444,27 @@ export async function executeTool(
         return await handleSendSms(input);
       case "get_call_status":
         return await handleGetCallStatus(input);
+      // Marketplace engine
+      case "marketplace_list_platforms":
+        return await handleMarketplaceListPlatforms();
+      case "marketplace_test_connection":
+        return await handleMarketplaceTestConnection(input);
+      case "marketplace_get_orders":
+        return await handleMarketplaceGetOrders(input);
+      case "marketplace_get_order":
+        return await handleMarketplaceGetOrder(input);
+      case "marketplace_ship_order":
+        return await handleMarketplaceShipOrder(input);
+      case "marketplace_get_messages":
+        return await handleMarketplaceGetMessages(input);
+      case "marketplace_send_message":
+        return await handleMarketplaceSendMessage(input);
+      case "marketplace_order_summary":
+        return await handleMarketplaceOrderSummary(input);
+      case "marketplace_get_unshipped":
+        return await handleMarketplaceGetUnshipped(input);
+      case "marketplace_bulk_ship":
+        return await handleMarketplaceBulkShip(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

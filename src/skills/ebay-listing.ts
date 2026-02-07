@@ -10,14 +10,14 @@ interface ToolResult {
   output: string;
 }
 
-interface EbayConfig {
+export interface EbayConfig {
   clientId: string;
   clientSecret: string;
   refreshToken: string;
   environment: "sandbox" | "production";
 }
 
-function getEbayConfig(): EbayConfig {
+export function getEbayConfig(): EbayConfig {
   const clientId = process.env.EBAY_CLIENT_ID ?? "";
   const clientSecret = process.env.EBAY_CLIENT_SECRET ?? "";
   const refreshToken = process.env.EBAY_REFRESH_TOKEN ?? "";
@@ -32,13 +32,13 @@ function getEbayConfig(): EbayConfig {
   return { clientId, clientSecret, refreshToken, environment };
 }
 
-function getBaseUrl(env: "sandbox" | "production"): string {
+export function getBaseUrl(env: "sandbox" | "production"): string {
   return env === "production"
     ? "https://api.ebay.com"
     : "https://api.sandbox.ebay.com";
 }
 
-async function getAccessToken(config: EbayConfig): Promise<string> {
+export async function getAccessToken(config: EbayConfig): Promise<string> {
   const baseUrl = getBaseUrl(config.environment);
   const credentials = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
 
@@ -51,7 +51,7 @@ async function getAccessToken(config: EbayConfig): Promise<string> {
     body: new URLSearchParams({
       grant_type: "refresh_token",
       refresh_token: config.refreshToken,
-      scope: "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account",
+      scope: "https://api.ebay.com/oauth/api_scope/sell.inventory https://api.ebay.com/oauth/api_scope/sell.account https://api.ebay.com/oauth/api_scope/sell.fulfillment",
     }),
   });
 

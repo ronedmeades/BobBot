@@ -165,7 +165,15 @@ bob/
     │   ├── translation.ts       # LLM-powered translation and language detection
     │   ├── browser.ts           # Playwright browser automation (Chromium, lazy-launched)
     │   ├── phone.ts             # Twilio phone calls & SMS (owner-only, no new deps)
+    │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
+    ├── marketplace/
+    │   ├── types.ts       # MarketplaceAdapter interface, Order, Message, etc.
+    │   ├── registry.ts    # Adapter registry + local adapter discovery
+    │   └── adapters/
+    │       ├── ebay.ts    # eBay: Fulfillment API (orders) + Trading API (messages)
+    │       ├── etsy.ts    # Etsy: Receipts API (orders), v3 REST
+    │       └── poshmark.ts # Poshmark: stub (no public API)
     └── tasks/
         ├── types.ts       # Task state types (pending/running/completed/failed)
         ├── runner.ts      # Background task execution + user notification + events
@@ -202,7 +210,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~102 total across 26 skill modules)
+### Available Tools (~112 total across 27 skill modules)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -423,6 +431,20 @@ Both share conversation history via the owner's user ID.
 | `send_sms` | Send SMS text message to owner |
 | `get_call_status` | Check call progress/status by Call SID |
 
+**Marketplace Engine (10)** — cross-platform (eBay, Etsy, Poshmark + local adapters):
+| Tool | What It Does |
+|------|-------------|
+| `marketplace_list_platforms` | List registered platforms and config status |
+| `marketplace_test_connection` | Test API connectivity for a platform |
+| `marketplace_get_orders` | Get orders from one or all platforms (filter by status, date) |
+| `marketplace_get_order` | Get detailed order info |
+| `marketplace_ship_order` | Mark order shipped with carrier + tracking |
+| `marketplace_get_messages` | Get buyer messages from one or all platforms |
+| `marketplace_send_message` | Send message to buyer through marketplace |
+| `marketplace_order_summary` | Dashboard: order counts by platform and status |
+| `marketplace_get_unshipped` | Quick view of all orders awaiting shipment |
+| `marketplace_bulk_ship` | Mark multiple orders as shipped at once |
+
 ### Event Bus (src/dashboard/events.ts)
 
 Typed EventEmitter singleton. All modules emit events, the SSE endpoint streams them
@@ -539,6 +561,7 @@ pnpm test             # Run tests (vitest)
 
 - [x] Desktop & taskbar shortcut — click to launch Bob (or focus if already running)
 - [x] Notification system — per-task notify_via + user default preference
+- [x] Marketplace engine — cross-platform adapter pattern (eBay, Etsy, Poshmark + local adapters)
 - [ ] Test Twilio phone call & SMS (set up env vars, verify number, try "call me and say hello")
 - [ ] Escalation engine phase 2: Standing rules + eBay order monitoring (auto-nag unshipped orders)
 - [ ] Escalation engine phase 3: Proactive suggestions — Bob suggests setting up escalations when he first encounters a task type (e.g. "I see you listed on eBay — want me to remind you to ship?")

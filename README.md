@@ -222,7 +222,12 @@ Bob has **100 tools across 26 skill modules**. Here's what he can do out of the 
 - **Social media posts** — generate platform-optimized content for LinkedIn, Facebook, Instagram, Twitter/X
 - **Monitor websites** — watch for changes, track keywords on HN/Reddit
 
-**Images & eBay:**
+**Marketplace & eBay:**
+- **Marketplace engine** — unified orders, messaging, and fulfillment across platforms
+- **eBay, Etsy, Poshmark** — built-in adapters (more can be added as local skills)
+- **Get orders** — view orders from any marketplace, filter by status
+- **Ship orders** — mark as shipped with tracking (single or bulk)
+- **Buyer messaging** — send/receive messages through marketplace platforms
 - **Process images** — resize, crop, convert, watermark (needs `sharp`)
 - **Analyze images** — describe photos, extract text, generate listings from poster photos
 - **List on eBay** — create listings, upload photos, bulk price updates (needs eBay API keys)

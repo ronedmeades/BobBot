@@ -6,6 +6,7 @@ import { startScheduler, stopScheduler } from "./tasks/scheduler.js";
 import { initTaskQueue } from "./tasks/queue.js";
 import { startWorker, stopWorker, setWorkerNotifier } from "./tasks/worker.js";
 import { initEscalation } from "./tasks/escalation.js";
+import { initMarketplaceAdapters } from "./marketplace/registry.js";
 import { startDashboard } from "./dashboard/server.js";
 import { events } from "./dashboard/events.js";
 
@@ -35,9 +36,10 @@ async function main(): Promise<void> {
   // Start dashboard HTTP server
   startDashboard();
 
-  // Initialize persistent task queue + escalation engine + background worker
+  // Initialize persistent task queue + escalation engine + marketplace + background worker
   await initTaskQueue();
   await initEscalation();
+  await initMarketplaceAdapters();
   startWorker();
 
   // Start scheduler (auto-backup, scheduled tasks, web monitors)
