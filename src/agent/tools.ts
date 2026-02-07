@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import type { ToolDefinition } from "../providers/types.js";
 import { imageToolDefinitions } from "../skills/image-processing.js";
 import { ebayToolDefinitions } from "../skills/ebay-listing.js";
 import { batchListerToolDefinitions } from "../skills/batch-lister.js";
@@ -11,7 +11,7 @@ import { formFillerToolDefinitions } from "../skills/form-filler.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
-const builtinTools: Anthropic.Tool[] = [
+const builtinTools: ToolDefinition[] = [
   {
     name: "fetch_url",
     description:
@@ -199,7 +199,7 @@ const builtinTools: Anthropic.Tool[] = [
  * All tool definitions including local skills.
  * Must call initTools() before using this.
  */
-export let toolDefinitions: Anthropic.Tool[] = [...builtinTools];
+export let toolDefinitions: ToolDefinition[] = [...builtinTools];
 
 /**
  * Initialize tools — loads local skills from local/skills/.

@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
 
-  console.log(`Bob is online. Model: ${config.anthropic.model}`);
+  console.log(`Bob is online. Provider: ${config.llm.provider}, Model: ${config.llm.model}`);
   console.log("Waiting for Telegram messages...");
 
   events.emitEvent("bot:status", { running: true });

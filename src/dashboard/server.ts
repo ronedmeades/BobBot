@@ -78,7 +78,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   if (method === "GET" && url === "/api/status") {
     json(res, {
       name: config.agent.name,
-      model: config.anthropic.model,
+      provider: config.llm.provider,
+      model: config.llm.model,
       botRunning: isBotRunning(),
       uptime: Math.floor((Date.now() - startTime) / 1000),
     });

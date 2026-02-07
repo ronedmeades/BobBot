@@ -1,14 +1,14 @@
 import { readdir, stat } from "node:fs/promises";
 import { resolve, join, extname } from "node:path";
 import { pathToFileURL } from "node:url";
-import type Anthropic from "@anthropic-ai/sdk";
+import type { ToolDefinition } from "../providers/types.js";
 
 /**
  * Local skills auto-loader.
  *
  * Scans `local/skills/` for .ts/.js files at startup and dynamically imports them.
  * Each local skill file should export:
- *   - toolDefinitions: Anthropic.Tool[]
+ *   - toolDefinitions: ToolDefinition[]
  *   - toolHandlers: Record<string, (input: Record<string, unknown>, context?: any) => Promise<ToolResult>>
  *
  * This lets users add personal skills that are never committed to the public repo.
@@ -25,12 +25,12 @@ type ToolHandler = (
 ) => Promise<ToolResult>;
 
 interface LocalSkillModule {
-  toolDefinitions?: Anthropic.Tool[];
+  toolDefinitions?: ToolDefinition[];
   toolHandlers?: Record<string, ToolHandler>;
 }
 
 // Accumulated definitions and handlers from all local skills
-const localDefinitions: Anthropic.Tool[] = [];
+const localDefinitions: ToolDefinition[] = [];
 const localHandlers = new Map<string, ToolHandler>();
 let loaded = false;
 
@@ -99,7 +99,7 @@ export async function loadLocalSkills(): Promise<void> {
  * Get all tool definitions from local skills.
  * Call loadLocalSkills() first.
  */
-export function getLocalToolDefinitions(): Anthropic.Tool[] {
+export function getLocalToolDefinitions(): ToolDefinition[] {
   return localDefinitions;
 }
 

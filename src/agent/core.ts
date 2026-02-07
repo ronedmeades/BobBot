@@ -1,8 +1,14 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.js";
+import { getProvider } from "../providers/factory.js";
+import type {
+  Message,
+  ContentBlock,
+  ToolResultContent,
+  ResponseBlock,
+} from "../providers/types.js";
 import { toolDefinitions } from "./tools.js";
 import { executeTool, type ToolContext } from "./tool-executor.js";
-import { memory, type ConversationEntry, type UserProfile } from "./memory.js";
+import { memory, type UserProfile } from "./memory.js";
 import { events } from "../dashboard/events.js";
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
@@ -41,7 +47,7 @@ Available tools let you: fetch URLs, read/write files, list directories, run she
 Use them freely to accomplish tasks.`;
 }
 
-const client = new Anthropic({ apiKey: config.anthropic.apiKey });
+const provider = getProvider(config.llm);
 
 export interface AgentResponse {
   text: string;
@@ -49,7 +55,7 @@ export interface AgentResponse {
 }
 
 /**
- * Run the agent loop: send a message, let Claude use tools, repeat until done.
+ * Run the agent loop: send a message, let the LLM use tools, repeat until done.
  */
 export async function runAgent(
   userId: string,
@@ -86,9 +92,9 @@ export async function runAgent(
   const history = await memory.loadHistory(userId);
 
   // Build messages from history + new message
-  const messages: Anthropic.MessageParam[] = [
+  const messages: Message[] = [
     ...history.slice(-20).map(
-      (entry): Anthropic.MessageParam => ({
+      (entry): Message => ({
         role: entry.role,
         content: entry.content,
       })
@@ -106,13 +112,13 @@ export async function runAgent(
   const toolsUsed: string[] = [];
   let rounds = 0;
 
-  // Agentic loop — keep going while Claude wants to use tools
+  // Agentic loop — keep going while the LLM wants to use tools
   while (rounds < config.agent.maxToolRounds) {
     rounds++;
 
-    const response = await client.messages.create({
-      model: config.anthropic.model,
-      max_tokens: 4096,
+    const response = await provider.chat({
+      model: config.llm.model,
+      maxTokens: 4096,
       system: systemPrompt,
       tools: toolDefinitions,
       messages,
@@ -120,16 +126,16 @@ export async function runAgent(
 
     // Collect all text blocks from the response
     const textBlocks = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .filter((b): b is Extract<ResponseBlock, { type: "text" }> => b.type === "text")
       .map((b) => b.text);
 
     // Collect all tool use blocks
     const toolUseBlocks = response.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use"
+      (b): b is Extract<ResponseBlock, { type: "tool_use" }> => b.type === "tool_use"
     );
 
     // If no tool calls, we're done
-    if (response.stop_reason === "end_turn" || toolUseBlocks.length === 0) {
+    if (response.stopReason === "end_turn" || toolUseBlocks.length === 0) {
       const finalText = textBlocks.join("\n") || "(No response)";
 
       await memory.appendHistory(userId, {
@@ -144,10 +150,10 @@ export async function runAgent(
     }
 
     // Add assistant message with tool calls to conversation
-    messages.push({ role: "assistant", content: response.content });
+    messages.push({ role: "assistant", content: response.content as ContentBlock[] });
 
     // Execute each tool call and collect results
-    const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
+    const toolResults: ToolResultContent[] = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
         toolsUsed.push(toolUse.name);
         console.log(`  [tool] ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 100)})`);
