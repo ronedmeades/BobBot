@@ -80,8 +80,9 @@ Waiting for Telegram messages...
 
 ### Optional Dependencies (installed when needed)
 - **sharp** — Image processing (required for image skills)
-- **pdf-lib** — PDF form parsing and filling
+- **pdf-lib** — PDF form parsing, filling, and invoice generation
 - **exceljs** — Excel/spreadsheet reading
+- **playwright** — Browser automation (Chromium, lazy-launched)
 
 ### Runtime
 - **Node.js**: v22+
@@ -107,7 +108,14 @@ bob/
 │   ├── profile-*.json     # User profiles (name, preferences, notes)
 │   ├── notes/             # Named notes saved by Bob
 │   ├── calendar.json      # Calendar events and reminders
+│   ├── captures.json      # Quick capture entries
+│   ├── contacts.json      # Contacts / address book
+│   ├── expenses.json      # Expense tracking records
 │   ├── inventory.json     # Indexed inventory data
+│   ├── invoices.json      # Invoice metadata (PDFs in invoices/)
+│   ├── invoices/          # Generated invoice PDFs
+│   ├── reminders.json     # Quick reminders with snooze
+│   ├── screenshots/       # Browser automation screenshots
 │   ├── task-queue.json    # Background task queue (persistent)
 │   └── vault.json         # Personal data vault for form filling
 └── src/
@@ -146,13 +154,23 @@ bob/
     │   ├── pdf-forms.ts         # PDF form parsing and auto-filling from vault (pdf-lib)
     │   ├── calendar.ts          # Calendar events, reminders, recurring event advancement
     │   ├── social-media.ts      # Platform-optimized social post generation + hashtags
+    │   ├── contacts.ts          # Address book with fuzzy search, tags, relationships
+    │   ├── reminders.ts         # Quick reminders with natural language time parsing + snooze
+    │   ├── expenses.ts          # Expense tracking, category breakdown, CSV/JSON export
+    │   ├── invoices.ts          # PDF invoice generation (pdf-lib), pulls from vault + contacts
+    │   ├── summarizer.ts        # LLM-powered document and URL summarization
+    │   ├── file-organizer.ts    # Scan, organize by type/date, find duplicates
+    │   ├── quick-capture.ts     # Tagged quick capture with fuzzy search
+    │   ├── weather.ts           # Weather and forecasts via wttr.in (no API key)
+    │   ├── translation.ts       # LLM-powered translation and language detection
+    │   ├── browser.ts           # Playwright browser automation (Chromium, lazy-launched)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     └── tasks/
         ├── types.ts       # Task state types (pending/running/completed/failed)
         ├── runner.ts      # Background task execution + user notification + events
         ├── worker.ts      # Autonomous task worker loop (30s polling, step-based execution)
         ├── busy-state.ts  # Prevents concurrent agent loops
-        └── scheduler.ts   # Hourly scheduler: auto-backup, scheduled tasks, web monitors, calendar reminders
+        └── scheduler.ts   # Hourly scheduler: auto-backup, scheduled tasks, web monitors, calendar + quick reminders
 ```
 
 ---
@@ -183,7 +201,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~60 total across 15 skill modules)
+### Available Tools (~97 total across 25 skill modules)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -318,6 +336,83 @@ Both share conversation history via the owner's user ID.
 | `generate_social_post` | Generate platform-optimized posts (LinkedIn, Facebook, Instagram, Twitter/X) |
 | `suggest_social_hashtags` | Generate relevant hashtags tailored to each platform |
 
+**Contacts / Address Book (6):**
+| Tool | What It Does |
+|------|-------------|
+| `add_contact` | Create a contact (name, email, phone, company, relationship, tags) |
+| `search_contacts` | Fuzzy search by name, company, email, or tag |
+| `get_contact` | Get full contact details by ID |
+| `update_contact` | Modify contact fields |
+| `delete_contact` | Remove a contact |
+| `list_contacts` | List all or filtered contacts (by tag, relationship) |
+
+**Reminders (4):**
+| Tool | What It Does |
+|------|-------------|
+| `set_reminder` | Create a reminder with natural language time ("in 2 hours", "tomorrow morning") |
+| `list_reminders` | List active reminders |
+| `snooze_reminder` | Snooze a reminder for a duration (default: 1 hour) |
+| `dismiss_reminder` | Dismiss/complete a reminder |
+
+**Expense Tracking (5):**
+| Tool | What It Does |
+|------|-------------|
+| `add_expense` | Log an expense (amount, category, vendor, receipt) |
+| `list_expenses` | List expenses with date/category filters |
+| `get_expense_summary` | Totals by category for a period (month/quarter/year) |
+| `delete_expense` | Remove an expense |
+| `export_expenses` | Export to CSV or JSON file |
+
+**Invoices (3)** — requires `pdf-lib`:
+| Tool | What It Does |
+|------|-------------|
+| `create_invoice` | Generate a PDF invoice (pulls sender from vault, client from contacts) |
+| `list_invoices` | List previously generated invoices |
+| `get_invoice` | Get invoice details by ID or number |
+
+**Document Summarizer (2):**
+| Tool | What It Does |
+|------|-------------|
+| `summarize_document` | Summarize a local file (brief/detailed/bullets style) |
+| `summarize_url` | Fetch a URL and summarize its content |
+
+**File Organizer (3):**
+| Tool | What It Does |
+|------|-------------|
+| `scan_folder` | Scan and categorize files by type, date, size |
+| `organize_files` | Move files into organized subfolders (by_type or by_date, dry_run by default) |
+| `find_duplicates` | Find duplicate files by name and size |
+
+**Quick Capture (4):**
+| Tool | What It Does |
+|------|-------------|
+| `capture` | Quick capture text, links, ideas, todos, or snippets with tags |
+| `list_captures` | List captures with type/tag filters |
+| `search_captures` | Fuzzy search through all captures |
+| `delete_capture` | Remove a capture |
+
+**Weather (2)** — uses wttr.in, no API key:
+| Tool | What It Does |
+|------|-------------|
+| `get_weather` | Current weather for any location |
+| `get_forecast` | Multi-day forecast (1–3 days) |
+
+**Translation (2):**
+| Tool | What It Does |
+|------|-------------|
+| `translate_text` | Translate text between languages (LLM-powered) |
+| `detect_language` | Identify the language of text |
+
+**Browser Automation (6)** — requires `playwright`:
+| Tool | What It Does |
+|------|-------------|
+| `browse_url` | Navigate to URL in Chromium, return page text + optional screenshot |
+| `click_element` | Click an element by CSS selector |
+| `type_into` | Type text into an input field |
+| `extract_content` | Extract text, HTML, or attributes from elements |
+| `take_screenshot` | Screenshot the current page (viewport or full page) |
+| `close_browser` | Close the browser instance |
+
 ### Event Bus (src/dashboard/events.ts)
 
 Typed EventEmitter singleton. All modules emit events, the SSE endpoint streams them
@@ -417,7 +512,6 @@ pnpm test             # Run tests (vitest)
 - Cross-format normalization (FHIR R4 JSON as canonical)
 
 ### Phase 3: Enhanced Capabilities
-- Playwright browser automation
 - MCP (Model Context Protocol) client for plug-and-play tool servers
 - SQLite for task history and structured memory
 
@@ -426,9 +520,8 @@ pnpm test             # Run tests (vitest)
 - Twilio for phone calls
 - Text-to-speech for responses
 
-### Phase 5: Smart Home & More
+### Phase 5: Smart Home
 - Smart home (Home Assistant)
-- Invoice generation
 
 ---
 
