@@ -6,6 +6,7 @@ import { events } from "../dashboard/events.js";
 import { checkScheduledTasks, initScheduledTasks } from "../skills/scheduler.js";
 import { checkAllWatches } from "../skills/web-monitor.js";
 import { checkCalendarReminders } from "../skills/calendar.js";
+import { checkReminders } from "../skills/reminders.js";
 import { getIsBusy } from "./busy-state.js";
 
 /**
@@ -185,6 +186,18 @@ async function runAllChecks(): Promise<void> {
     }
   } catch (err) {
     console.error("[scheduler] Calendar reminder error:", err);
+  }
+
+  // Check quick reminders (snooze-based)
+  try {
+    const dueReminders = await checkReminders();
+    if (dueReminders.length > 0) {
+      await sendOwnerMessage(
+        `Reminders:\n\n${dueReminders.join("\n\n")}`
+      );
+    }
+  } catch (err) {
+    console.error("[scheduler] Reminders error:", err);
   }
 }
 

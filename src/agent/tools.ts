@@ -13,6 +13,16 @@ import { inventoryToolDefinitions } from "../skills/inventory.js";
 import { pdfFormToolDefinitions } from "../skills/pdf-forms.js";
 import { calendarToolDefinitions } from "../skills/calendar.js";
 import { socialMediaToolDefinitions } from "../skills/social-media.js";
+import { translationToolDefinitions } from "../skills/translation.js";
+import { weatherToolDefinitions } from "../skills/weather.js";
+import { contactsToolDefinitions } from "../skills/contacts.js";
+import { remindersToolDefinitions } from "../skills/reminders.js";
+import { expensesToolDefinitions } from "../skills/expenses.js";
+import { invoiceToolDefinitions } from "../skills/invoices.js";
+import { summarizerToolDefinitions } from "../skills/summarizer.js";
+import { fileOrganizerToolDefinitions } from "../skills/file-organizer.js";
+import { quickCaptureToolDefinitions } from "../skills/quick-capture.js";
+import { browserToolDefinitions } from "../skills/browser.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -223,6 +233,26 @@ const builtinTools: ToolDefinition[] = [
   ...calendarToolDefinitions,
   // Social media post generation
   ...socialMediaToolDefinitions,
+  // Translation & language detection
+  ...translationToolDefinitions,
+  // Weather skills
+  ...weatherToolDefinitions,
+  // Contacts / address book
+  ...contactsToolDefinitions,
+  // Reminders with snooze
+  ...remindersToolDefinitions,
+  // Expense tracking
+  ...expensesToolDefinitions,
+  // Invoice generation
+  ...invoiceToolDefinitions,
+  // Document summarizer
+  ...summarizerToolDefinitions,
+  // File organizer
+  ...fileOrganizerToolDefinitions,
+  // Quick capture / clipboard
+  ...quickCaptureToolDefinitions,
+  // Browser automation (Playwright)
+  ...browserToolDefinitions,
 ];
 
 /**

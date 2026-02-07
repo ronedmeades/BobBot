@@ -93,6 +93,63 @@ import {
   handleGenerateSocialPost,
   handleSuggestSocialHashtags,
 } from "../skills/social-media.js";
+import {
+  handleTranslateText,
+  handleDetectLanguage,
+} from "../skills/translation.js";
+import {
+  handleGetWeather,
+  handleGetForecast,
+} from "../skills/weather.js";
+import {
+  handleAddContact,
+  handleSearchContacts,
+  handleGetContact,
+  handleUpdateContact,
+  handleDeleteContact,
+  handleListContacts,
+} from "../skills/contacts.js";
+import {
+  handleSetReminder,
+  handleListReminders,
+  handleSnoozeReminder,
+  handleDismissReminder,
+} from "../skills/reminders.js";
+import {
+  handleAddExpense,
+  handleListExpenses,
+  handleGetExpenseSummary,
+  handleDeleteExpense,
+  handleExportExpenses,
+} from "../skills/expenses.js";
+import {
+  handleCreateInvoice,
+  handleListInvoices,
+  handleGetInvoice,
+} from "../skills/invoices.js";
+import {
+  handleSummarizeDocument,
+  handleSummarizeUrl,
+} from "../skills/summarizer.js";
+import {
+  handleScanFolder,
+  handleOrganizeFiles,
+  handleFindDuplicates,
+} from "../skills/file-organizer.js";
+import {
+  handleCapture,
+  handleListCaptures,
+  handleSearchCaptures,
+  handleDeleteCapture,
+} from "../skills/quick-capture.js";
+import {
+  handleBrowseUrl,
+  handleClickElement,
+  handleTypeInto,
+  handleExtractContent,
+  handleTakeScreenshot,
+  handleCloseBrowser,
+} from "../skills/browser.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -272,6 +329,90 @@ export async function executeTool(
         return await handleGenerateSocialPost(input);
       case "suggest_social_hashtags":
         return await handleSuggestSocialHashtags(input);
+      // Translation & language detection
+      case "translate_text":
+        return await handleTranslateText(input);
+      case "detect_language":
+        return await handleDetectLanguage(input);
+      // Weather skills
+      case "get_weather":
+        return await handleGetWeather(input);
+      case "get_forecast":
+        return await handleGetForecast(input);
+      // Contacts / address book
+      case "add_contact":
+        return await handleAddContact(input);
+      case "search_contacts":
+        return await handleSearchContacts(input);
+      case "get_contact":
+        return await handleGetContact(input);
+      case "update_contact":
+        return await handleUpdateContact(input);
+      case "delete_contact":
+        return await handleDeleteContact(input);
+      case "list_contacts":
+        return await handleListContacts(input);
+      // Reminders
+      case "set_reminder":
+        return await handleSetReminder(input);
+      case "list_reminders":
+        return await handleListReminders(input);
+      case "snooze_reminder":
+        return await handleSnoozeReminder(input);
+      case "dismiss_reminder":
+        return await handleDismissReminder(input);
+      // Expense tracking
+      case "add_expense":
+        return await handleAddExpense(input);
+      case "list_expenses":
+        return await handleListExpenses(input);
+      case "get_expense_summary":
+        return await handleGetExpenseSummary(input);
+      case "delete_expense":
+        return await handleDeleteExpense(input);
+      case "export_expenses":
+        return await handleExportExpenses(input);
+      // Invoice generation
+      case "create_invoice":
+        return await handleCreateInvoice(input);
+      case "list_invoices":
+        return await handleListInvoices(input);
+      case "get_invoice":
+        return await handleGetInvoice(input);
+      // Document summarizer
+      case "summarize_document":
+        return await handleSummarizeDocument(input);
+      case "summarize_url":
+        return await handleSummarizeUrl(input);
+      // File organizer
+      case "scan_folder":
+        return await handleScanFolder(input);
+      case "organize_files":
+        return await handleOrganizeFiles(input);
+      case "find_duplicates":
+        return await handleFindDuplicates(input);
+      // Quick capture
+      case "capture":
+        return await handleCapture(input);
+      case "list_captures":
+        return await handleListCaptures(input);
+      case "search_captures":
+        return await handleSearchCaptures(input);
+      case "delete_capture":
+        return await handleDeleteCapture(input);
+      // Browser automation
+      case "browse_url":
+        return await handleBrowseUrl(input);
+      case "click_element":
+        return await handleClickElement(input);
+      case "type_into":
+        return await handleTypeInto(input);
+      case "extract_content":
+        return await handleExtractContent(input);
+      case "take_screenshot":
+        return await handleTakeScreenshot(input);
+      case "close_browser":
+        return await handleCloseBrowser();
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);
