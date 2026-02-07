@@ -33,8 +33,8 @@ if not exist ".env" (
     exit /b 1
 )
 
-:: Check if Bob is already running (test the port)
-powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri '!URL!/api/status' -TimeoutSec 2 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+:: Check if Bob is already running (test if port is open)
+powershell -NoProfile -Command "try { $c = [System.Net.Sockets.TcpClient]::new(); $c.Connect('127.0.0.1', !PORT!); $c.Close(); exit 0 } catch { exit 1 }" >nul 2>&1
 if %errorlevel%==0 (
     :: Bob is already running - just open the browser
     start "" "!URL!"
@@ -54,7 +54,7 @@ if !TRIES! geq 30 (
     exit /b 1
 )
 timeout /t 1 /nobreak >nul
-powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri '!URL!/api/status' -TimeoutSec 2 -UseBasicParsing; exit 0 } catch { exit 1 }" >nul 2>&1
+powershell -NoProfile -Command "try { $c = [System.Net.Sockets.TcpClient]::new(); $c.Connect('127.0.0.1', !PORT!); $c.Close(); exit 0 } catch { exit 1 }" >nul 2>&1
 if %errorlevel%==0 (
     :: Bob is ready - open the browser
     start "" "!URL!"
