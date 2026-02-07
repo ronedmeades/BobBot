@@ -12,21 +12,61 @@ Before starting, you need two things installed on your computer:
 
 ### 1. Node.js (version 22 or newer)
 
-Node.js is the engine that runs Bob. Download and install it:
-
-- **Windows / Mac**: Go to [nodejs.org](https://nodejs.org/) and click the big green button. Run the installer.
-- **Check it worked**: Open a terminal and type `node --version`. You should see `v22` or higher.
+Node.js is the engine that runs Bob.
 
 > **How to open a terminal:**
 > - **Windows**: Press `Win + R`, type `cmd`, press Enter
 > - **Mac**: Press `Cmd + Space`, type `Terminal`, press Enter
 
-### 2. pnpm (package manager)
+<details>
+<summary><strong>Windows setup</strong></summary>
 
-After installing Node.js, open a terminal and run:
+1. Go to [nodejs.org](https://nodejs.org/) and click the big green button
+2. Run the installer (accept all defaults)
+3. Open a **new** Command Prompt and check it worked:
+   ```
+   node --version
+   ```
+   You should see `v22` or higher.
+4. Install pnpm:
+   ```
+   npm install -g pnpm
+   ```
 
+</details>
+
+<details>
+<summary><strong>Mac setup</strong></summary>
+
+**Option A — Direct download (easiest):**
+1. Go to [nodejs.org](https://nodejs.org/) and click the big green button
+2. Run the installer
+3. Open Terminal and check it worked:
+   ```
+   node --version
+   ```
+4. Install pnpm:
+   ```
+   npm install -g pnpm
+   ```
+
+**Option B — Via Homebrew (if you have it):**
 ```
+brew install node
 npm install -g pnpm
+```
+
+If you don't have Homebrew and want it:
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+</details>
+
+Check both are installed:
+```
+node --version    # should show v22 or higher
+pnpm --version    # should show a version number
 ```
 
 That's it for prerequisites.
@@ -142,18 +182,43 @@ Bob will walk you through the whole process step by step.
 
 ## What Can Bob Do?
 
-Out of the box, Bob can:
+Bob has **97 tools across 25 skill modules**. Here's what he can do out of the box:
 
+**Basics:**
 - **Fetch web pages and APIs** — research topics, check prices, read documentation
 - **Read and write files** — on your computer, wherever you point him
 - **Run shell commands** — install things, run scripts, automate tasks
 - **Remember things** — persistent notes that survive restarts
-- **Process images** — resize, crop, convert, watermark (needs the `sharp` package)
-- **List on eBay** — create listings, upload photos (needs eBay API keys)
-- **Send email** — via Gmail (needs Gmail API keys)
-- **Monitor websites** — watch for changes, track keywords on HN/Reddit
-- **Analyze images** — describe photos, extract text, generate eBay listings from poster photos
+
+**Productivity:**
+- **Calendar & events** — schedule meetings, deadlines, recurring events with reminders
+- **Reminders** — "remind me in 2 hours", "tomorrow morning", snooze support
+- **Contacts** — address book with search, tags, and relationships
+- **Quick capture** — jot down ideas, links, todos, snippets — searchable later
+- **Expense tracking** — log expenses, category breakdowns, CSV/JSON export
+- **Invoices** — generate PDF invoices (pulls your info from the vault, client info from contacts)
 - **Fill forms** — personal data vault with smart field matching
+- **PDF forms** — parse and auto-fill PDF forms from your vault
+
+**Research & Content:**
+- **Summarize documents** — summarize files or URLs (brief, detailed, or bullet points)
+- **Translate text** — translate between languages, detect language
+- **Weather** — current conditions and forecasts for any location (free, no API key)
+- **Social media posts** — generate platform-optimized content for LinkedIn, Facebook, Instagram, Twitter/X
+- **Monitor websites** — watch for changes, track keywords on HN/Reddit
+
+**Images & eBay:**
+- **Process images** — resize, crop, convert, watermark (needs `sharp`)
+- **Analyze images** — describe photos, extract text, generate listings from poster photos
+- **List on eBay** — create listings, upload photos, bulk price updates (needs eBay API keys)
+- **Batch poster workflow** — scan a folder of posters, auto-generate eBay listings
+
+**System:**
+- **File organizer** — scan folders, organize by type or date, find duplicates
+- **Browser automation** — navigate pages, click, type, screenshot (needs `playwright`)
+- **Send email** — via Gmail (needs Gmail API keys)
+- **Backups** — auto-backup to an external drive on a schedule
+- **Background tasks** — hand Bob a task and he works on it autonomously
 
 Bob is extensible — new skills can be added as modules. Ask Bob what he can do and he'll tell you.
 
