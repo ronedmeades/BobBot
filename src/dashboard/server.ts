@@ -80,6 +80,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       name: config.agent.name,
       provider: config.llm.provider,
       model: config.llm.model,
+      telegramConfigured: !!config.telegram.botToken,
       botRunning: isBotRunning(),
       uptime: Math.floor((Date.now() - startTime) / 1000),
     });
@@ -154,6 +155,10 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // POST /api/bot/start
   if (method === "POST" && url === "/api/bot/start") {
+    if (!config.telegram.botToken) {
+      error(res, "Telegram not configured. Add TELEGRAM_BOT_TOKEN to .env and restart Bob.");
+      return;
+    }
     if (isBotRunning()) {
       json(res, { status: "already_running" });
       return;

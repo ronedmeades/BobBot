@@ -44,7 +44,21 @@ Memory:
 ${notesList}
 
 Available tools let you: fetch URLs, read/write files, list directories, run shell commands, and manage your memory.
-Use them freely to accomplish tasks.`;
+Use them freely to accomplish tasks.
+${!config.telegram.botToken ? `
+Telegram setup:
+- The user is chatting via the web dashboard. Telegram is not set up yet.
+- If they ask about mobile access or setting up Telegram, walk them through it:
+  1. Install Telegram on their phone (telegram.org)
+  2. Open Telegram and message @BotFather
+  3. Send /newbot and follow the prompts to create a bot
+  4. Copy the bot token and add TELEGRAM_BOT_TOKEN=<token> to the .env file
+  5. Message @userinfobot on Telegram to find their user ID
+  6. Add OWNER_USER_ID=<id> to the .env file
+  7. Restart Bob (Ctrl+C in the terminal, then pnpm dev)
+- You can also use write_file to update the .env file for them if they give you the values.` : ""}
+${userName === "mate" || userName === "Owner" ? `
+The user hasn't told you their name yet. Ask them early in the conversation so you can address them personally. Use update_user_profile to save it.` : ""}`;
 }
 
 const provider = getProvider(config.llm);

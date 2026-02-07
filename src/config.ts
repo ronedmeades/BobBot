@@ -18,7 +18,7 @@ export const config = {
     botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   },
   owner: {
-    userId: process.env.OWNER_USER_ID ?? "",
+    userId: process.env.OWNER_USER_ID || "owner",
     name: process.env.OWNER_NAME ?? "Owner",
     notes: process.env.OWNER_NOTES ?? "",
   },
@@ -40,9 +40,7 @@ export function validateConfig(): void {
     );
   }
   if (!config.telegram.botToken) {
-    throw new Error("TELEGRAM_BOT_TOKEN is required. Set it in .env");
-  }
-  if (!config.owner.userId) {
-    throw new Error("OWNER_USER_ID is required. Set it in .env (your Telegram user ID)");
+    console.log("No TELEGRAM_BOT_TOKEN set — Telegram disabled. Chat via the dashboard instead.");
+    console.log("Ask Bob to help you set up Telegram when you're ready.\n");
   }
 }

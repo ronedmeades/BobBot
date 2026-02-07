@@ -32,9 +32,6 @@ async function main(): Promise<void> {
   // Start dashboard HTTP server
   startDashboard();
 
-  // Create and start Telegram bot
-  createBot();
-
   // Start scheduler (auto-backup, scheduled tasks, web monitors)
   await startScheduler();
 
@@ -49,10 +46,16 @@ async function main(): Promise<void> {
   process.on("SIGTERM", stop);
 
   console.log(`Bob is online. Provider: ${config.llm.provider}, Model: ${config.llm.model}`);
-  console.log("Waiting for Telegram messages...");
 
-  events.emitEvent("bot:status", { running: true });
-  await startBot();
+  // Start Telegram bot if configured, otherwise dashboard-only mode
+  if (config.telegram.botToken) {
+    createBot();
+    events.emitEvent("bot:status", { running: true });
+    console.log("Telegram connected. Waiting for messages...");
+    await startBot();
+  } else {
+    console.log("Chat with Bob at http://localhost:3000");
+  }
 }
 
 main().catch((err) => {
