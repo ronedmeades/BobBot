@@ -457,12 +457,14 @@
   }
 
   function promptForToken() {
-    const token = prompt('Enter your Bob API token (BOB_API_TOKEN from .env):');
-    if (token) {
-      apiToken = token.trim();
-      localStorage.setItem('bob_api_token', apiToken);
-      // Reload to re-init everything with the token
-      location.reload();
+    // Token is injected server-side — if we still get 401, show a non-blocking message
+    const chatEl = document.getElementById('messages');
+    if (chatEl && !document.getElementById('auth-error-msg')) {
+      const div = document.createElement('div');
+      div.id = 'auth-error-msg';
+      div.className = 'msg system';
+      div.textContent = 'Authentication failed. Check that BOB_API_TOKEN is set in your .env and restart Bob.';
+      chatEl.appendChild(div);
     }
   }
 

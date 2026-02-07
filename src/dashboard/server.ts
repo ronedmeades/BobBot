@@ -80,7 +80,14 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     let served = false;
     for (const htmlPath of candidates) {
       try {
-        const html = await readFile(htmlPath, "utf-8");
+        let html = await readFile(htmlPath, "utf-8");
+        // Inject the API token server-side so the dashboard auto-authenticates
+        if (API_TOKEN) {
+          html = html.replace(
+            "let apiToken = localStorage.getItem('bob_api_token') || '';",
+            `let apiToken = ${JSON.stringify(API_TOKEN)};`,
+          );
+        }
         res.writeHead(200, { "Content-Type": "text/html" });
         res.end(html);
         served = true;
