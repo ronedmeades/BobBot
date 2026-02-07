@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import { runAgent } from "../agent/core.js";
 import { submitTask, setNotifier } from "../tasks/runner.js";
 import { setSchedulerNotifier } from "../tasks/scheduler.js";
+import { setWorkerNotifier } from "../tasks/worker.js";
 import { memory } from "../agent/memory.js";
 import { events } from "../dashboard/events.js";
 
@@ -22,6 +23,7 @@ export function createBot(): Bot {
   };
   setNotifier(sendMessage);
   setSchedulerNotifier(sendMessage);
+  setWorkerNotifier(sendMessage);
 
   // /start command
   bot.command("start", async (ctx) => {
@@ -43,7 +45,7 @@ export function createBot(): Bot {
     const userId = String(ctx.from?.id ?? "unknown");
     const chatId = ctx.chat.id;
 
-    const task = submitTask(userId, chatId, description);
+    const task = await submitTask(userId, chatId, description);
     await ctx.reply(
       `On it. I'll text you when I'm done.\n\nTask ID: ${task.id.slice(0, 8)}`
     );
@@ -53,7 +55,7 @@ export function createBot(): Bot {
   bot.command("status", async (ctx) => {
     const { getTasksForUser } = await import("../tasks/runner.js");
     const userId = String(ctx.from?.id ?? "unknown");
-    const tasks = getTasksForUser(userId);
+    const tasks = await getTasksForUser(userId);
 
     if (tasks.length === 0) {
       await ctx.reply("No tasks running. Send me something to do!");
@@ -61,7 +63,7 @@ export function createBot(): Bot {
     }
 
     const lines = tasks.slice(-5).map((t) => {
-      const icon = t.status === "completed" ? "+" : t.status === "running" ? "~" : t.status === "failed" ? "x" : "-";
+      const icon = t.status === "completed" ? "+" : t.status === "active" ? "~" : t.status === "failed" ? "x" : "-";
       return `[${icon}] ${t.description.slice(0, 60)} (${t.status})`;
     });
 

@@ -5,6 +5,7 @@ import { handleBackupBob } from "../skills/backup.js";
 import { events } from "../dashboard/events.js";
 import { checkScheduledTasks, initScheduledTasks } from "../skills/scheduler.js";
 import { checkAllWatches } from "../skills/web-monitor.js";
+import { getIsBusy } from "./busy-state.js";
 
 /**
  * Simple scheduler for recurring tasks.
@@ -146,6 +147,12 @@ async function checkAndRunBackup(): Promise<void> {
  * Run all hourly checks: backup, scheduled tasks, web monitors.
  */
 async function runAllChecks(): Promise<void> {
+  // Skip if agent is busy with direct chat or background task
+  if (getIsBusy()) {
+    console.log("[scheduler] Skipping checks — agent is busy");
+    return;
+  }
+
   await checkAndRunBackup();
 
   // Run user-defined scheduled tasks

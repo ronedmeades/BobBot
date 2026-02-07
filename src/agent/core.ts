@@ -10,6 +10,7 @@ import { toolDefinitions } from "./tools.js";
 import { executeTool, type ToolContext } from "./tool-executor.js";
 import { memory, type UserProfile } from "./memory.js";
 import { events } from "../dashboard/events.js";
+import { setIsBusy } from "../tasks/busy-state.js";
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
   const userName = profile?.name ?? "mate";
@@ -59,6 +60,16 @@ Self-extending skills:
   6. Then use your new tools immediately in the same conversation
 - Skills persist across restarts — they load automatically from local/skills/ on startup
 - If install_skill reports an error, read the error message, fix the file with write_file, and try install_skill again
+
+Background tasks:
+- You can work on tasks autonomously in the background using create_background_task
+- When the user asks you to "research X", "investigate Y", "look into Z", or any multi-step job, offer to create a background task
+- Background tasks run automatically when you're not in a direct conversation — the user doesn't need to stay in the chat
+- Each task runs in steps. Between steps, your findings are saved so you can continue later
+- Use list_background_tasks to check on progress when the user asks
+- Use get_task_details to see full findings for a specific task
+- Task results are saved as notes you can load with load_note
+- If the user says something like "work on this when you're free" or "do this in the background", that's definitely a background task
 ${!config.telegram.botToken ? `
 Telegram setup:
 - The user is chatting via the web dashboard. Telegram is not set up yet.
@@ -88,9 +99,28 @@ export interface AgentResponse {
 export async function runAgent(
   userId: string,
   userMessage: string,
-  source: "telegram" | "dashboard" = "telegram"
+  source: "telegram" | "dashboard" | "worker" = "telegram"
 ): Promise<AgentResponse> {
-  events.emitEvent("message:in", { userId, text: userMessage, source });
+  const isWorker = source === "worker";
+  if (!isWorker) {
+    setIsBusy(true, "chat");
+  }
+
+  try {
+    return await runAgentInner(userId, userMessage, source);
+  } finally {
+    if (!isWorker) {
+      setIsBusy(false);
+    }
+  }
+}
+
+async function runAgentInner(
+  userId: string,
+  userMessage: string,
+  source: "telegram" | "dashboard" | "worker"
+): Promise<AgentResponse> {
+  events.emitEvent("message:in", { userId, text: userMessage, source: source === "worker" ? "dashboard" : source });
 
   // Load user profile and notes for dynamic prompt
   let profile = await memory.loadProfile(userId);
@@ -144,6 +174,12 @@ export async function runAgent(
   while (rounds < config.agent.maxToolRounds) {
     rounds++;
 
+    events.emitEvent("agent:status", {
+      userId,
+      status: "thinking",
+      detail: rounds === 1 ? "Thinking..." : `Working... (step ${rounds})`,
+    });
+
     const response = await provider.chat({
       model: config.llm.model,
       maxTokens: 4096,
@@ -172,6 +208,7 @@ export async function runAgent(
         timestamp: new Date().toISOString(),
       });
 
+      events.emitEvent("agent:status", { userId, status: "done" });
       events.emitEvent("message:out", { userId, text: finalText });
 
       return { text: finalText, toolsUsed };
@@ -181,6 +218,13 @@ export async function runAgent(
     messages.push({ role: "assistant", content: response.content as ContentBlock[] });
 
     // Execute each tool call and collect results
+    const toolNames = toolUseBlocks.map((b) => b.name).join(", ");
+    events.emitEvent("agent:status", {
+      userId,
+      status: "tool_use",
+      detail: `Using ${toolNames}...`,
+    });
+
     const toolResults: ToolResultContent[] = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
         toolsUsed.push(toolUse.name);
@@ -222,6 +266,7 @@ export async function runAgent(
     timestamp: new Date().toISOString(),
   });
 
+  events.emitEvent("agent:status", { userId, status: "done" });
   events.emitEvent("message:out", { userId, text: fallback });
 
   return { text: fallback, toolsUsed };

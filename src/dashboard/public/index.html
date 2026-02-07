@@ -164,6 +164,9 @@
   .event.bot-status { background: #f8514922; }
   .event.bot-status .tag { background: #f85149; color: #fff; }
 
+  .event.agent-status { background: #8957e522; }
+  .event.agent-status .tag { background: #8957e5; color: #fff; }
+
   /* Chat panel */
   .chat {
     width: 400px;
@@ -266,6 +269,34 @@
     font-weight: 600;
     color: #8b949e;
     white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .task-bar .label.active {
+    color: #d2a8ff;
+  }
+
+  .task-bar .label.done {
+    color: #3fb950;
+  }
+
+  .task-bar .label .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d2a8ff;
+    flex-shrink: 0;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .task-bar .label .done-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #3fb950;
+    flex-shrink: 0;
   }
 
   .task-chip {
@@ -283,14 +314,68 @@
 
   .task-chip .icon { font-size: 10px; }
   .task-chip.completed { border-color: #238636; color: #3fb950; }
-  .task-chip.running { border-color: #d29922; color: #d29922; }
+  .task-chip.active { border-color: #d29922; color: #d29922; }
   .task-chip.pending { border-color: #8b949e; color: #8b949e; }
+  .task-chip.paused { border-color: #8957e5; color: #d2a8ff; }
   .task-chip.failed { border-color: #f85149; color: #f85149; }
+  .task-chip.cancelled { border-color: #484f58; color: #484f58; }
 
   .no-tasks {
     font-size: 12px;
     color: #484f58;
     font-style: italic;
+  }
+
+  .session-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    background: #8957e522;
+    border: 1px solid #8957e5;
+    color: #d2a8ff;
+  }
+
+  .session-status .pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #d2a8ff;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .session-tools {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #8b949e;
+    white-space: nowrap;
+  }
+
+  .session-tools .tool-badge {
+    padding: 2px 6px;
+    border-radius: 8px;
+    background: #21262d;
+    border: 1px solid #30363d;
+    font-size: 10px;
+    color: #8b949e;
+  }
+
+  .session-divider {
+    width: 1px;
+    height: 16px;
+    background: #30363d;
+    flex-shrink: 0;
   }
 
   /* Scrollbar */
@@ -332,8 +417,8 @@
 </div>
 
 <div class="task-bar">
-  <span class="label">Tasks:</span>
-  <div id="task-list"><span class="no-tasks">No tasks yet</span></div>
+  <span class="label" id="task-label">Idle</span>
+  <div id="task-list"></div>
 </div>
 
 <script>
@@ -408,6 +493,36 @@
       if (event.type === 'task:update') {
         fetchTasks();
       }
+
+      // Capture user message as current task topic
+      if (event.type === 'message:in') {
+        setSessionTopic(event.data.text);
+      }
+
+      // Update task bar + thinking bubble from agent events
+      if (event.type === 'agent:status') {
+        updateAgentStatus(event.data);
+        const bubble = document.getElementById('thinking-bubble');
+        if (bubble && event.data.status !== 'done') {
+          const labels = { thinking: 'Thinking...', tool_use: 'Working...' };
+          bubble.textContent = event.data.detail || labels[event.data.status] || 'Working...';
+        }
+      }
+      if (event.type === 'tool:call') {
+        addToolToSession(event.data.tool);
+        const bubble = document.getElementById('thinking-bubble');
+        if (bubble) {
+          bubble.textContent = `Using ${event.data.tool}...`;
+        }
+      }
+
+      // Background worker events
+      if (event.type === 'worker:start' || event.type === 'worker:progress') {
+        fetchTasks();
+      }
+      if (event.type === 'worker:idle') {
+        fetchTasks();
+      }
     };
 
     es.onerror = () => {
@@ -449,6 +564,12 @@
       case 'task:update':
         body = `<span class="tag">${event.data.status.toUpperCase()}</span>${escapeHtml(event.data.description || '')}`;
         break;
+      case 'agent:status': {
+        const statusLabels = { thinking: 'THINKING', tool_use: 'WORKING', done: 'DONE' };
+        const label = statusLabels[event.data.status] || event.data.status;
+        body = `<span class="tag">${label}</span>${escapeHtml(event.data.detail || '')}`;
+        break;
+      }
       case 'bot:status':
         body = `<span class="tag">BOT</span>${event.data.running ? 'Started' : 'Stopped'}`;
         break;
@@ -500,7 +621,8 @@
     input.value = '';
     addChatBubble('user', text);
 
-    const thinking = addChatBubble('thinking', 'thinking...');
+    const thinking = addChatBubble('thinking', 'Thinking...');
+    thinking.id = 'thinking-bubble';
     const sendBtn = document.getElementById('send-btn');
     sendBtn.disabled = true;
     input.disabled = true;
@@ -529,36 +651,144 @@
     }
   }
 
+  // --- Agent session tracking ---
+  let agentSession = { status: null, detail: '', topic: '', tools: [], clearTimer: null };
+
+  function setSessionTopic(messageText) {
+    if (!messageText) return;
+    // Truncate to a readable task label
+    const text = String(messageText).trim();
+    agentSession.topic = text.length > 60 ? text.slice(0, 57) + '...' : text;
+    renderTaskBar();
+  }
+
+  function updateAgentStatus(data) {
+    if (agentSession.clearTimer) {
+      clearTimeout(agentSession.clearTimer);
+      agentSession.clearTimer = null;
+    }
+
+    agentSession.status = data.status;
+    agentSession.detail = data.detail || '';
+
+    if (data.status === 'done') {
+      // Keep the "done" state visible briefly, then clear
+      agentSession.clearTimer = setTimeout(() => {
+        agentSession.status = null;
+        agentSession.detail = '';
+        agentSession.topic = '';
+        agentSession.tools = [];
+        renderTaskBar();
+      }, 8000);
+    }
+
+    renderTaskBar();
+  }
+
+  function addToolToSession(toolName) {
+    if (!agentSession.tools.includes(toolName)) {
+      agentSession.tools.push(toolName);
+    }
+    renderTaskBar();
+  }
+
   // --- Tasks ---
+  let lastTasks = [];
+
   async function fetchTasks() {
     try {
       const r = await fetch('/api/tasks');
-      const tasks = await r.json();
-      renderTasks(tasks);
+      lastTasks = await r.json();
+      renderTaskBar();
     } catch {}
   }
 
-  function renderTasks(tasks) {
+  function renderTaskBar() {
+    const label = document.getElementById('task-label');
     const container = document.getElementById('task-list');
-    if (tasks.length === 0) {
-      container.innerHTML = '<span class="no-tasks">No tasks yet</span>';
-      return;
+    container.innerHTML = '';
+
+    const hasSession = agentSession.status !== null;
+    const hasTasks = lastTasks.length > 0;
+
+    // Update the main label based on state
+    if (hasSession && agentSession.status !== 'done') {
+      const topic = agentSession.topic || 'Processing...';
+      label.className = 'label active';
+      label.innerHTML = `<span class="pulse-dot"></span>${escapeHtml(topic)}`;
+    } else if (hasSession && agentSession.status === 'done') {
+      const topic = agentSession.topic || 'Task complete';
+      label.className = 'label done';
+      label.innerHTML = `<span class="done-dot"></span>${escapeHtml(topic)}`;
+    } else {
+      label.className = 'label';
+      label.textContent = 'Idle';
     }
 
-    container.innerHTML = '';
-    const statusIcons = {
-      completed: '\u2713',
-      running: '\u25CB',
-      pending: '\u25CB',
-      failed: '\u2717',
-    };
+    // Show step detail + tools as chips in the task-list area
+    if (hasSession && agentSession.status !== 'done') {
+      // Show current step
+      const statusLabels = { thinking: 'Thinking...', tool_use: 'Working...' };
+      const stepText = agentSession.detail || statusLabels[agentSession.status] || '';
+      if (stepText) {
+        const stepChip = document.createElement('span');
+        stepChip.className = 'session-status';
+        stepChip.innerHTML = `<span class="pulse"></span>${escapeHtml(stepText)}`;
+        container.appendChild(stepChip);
+      }
+    }
 
-    for (const t of tasks.slice(-8)) {
-      const chip = document.createElement('span');
-      chip.className = `task-chip ${t.status}`;
-      chip.title = `${t.description}\nStatus: ${t.status}${t.result ? '\n\nResult: ' + t.result.slice(0, 200) : ''}`;
-      chip.innerHTML = `<span class="icon">${statusIcons[t.status] || '?'}</span>${t.description.slice(0, 40)}`;
-      container.appendChild(chip);
+    // Show tools used in this session
+    if (hasSession && agentSession.tools.length > 0) {
+      const toolsSpan = document.createElement('span');
+      toolsSpan.className = 'session-tools';
+      const recent = agentSession.tools.slice(-6);
+      toolsSpan.innerHTML = recent.map(t =>
+        `<span class="tool-badge">${escapeHtml(t)}</span>`
+      ).join('');
+      container.appendChild(toolsSpan);
+    }
+
+    // Show background tasks
+    const activeTasks = lastTasks.filter(t => !['completed', 'cancelled', 'failed'].includes(t.status));
+    const recentDone = lastTasks.filter(t => ['completed', 'cancelled', 'failed'].includes(t.status)).slice(-3);
+    const tasksToShow = [...activeTasks, ...recentDone].slice(-8);
+
+    if (tasksToShow.length > 0) {
+      if (hasSession) {
+        const divider = document.createElement('span');
+        divider.className = 'session-divider';
+        container.appendChild(divider);
+      }
+
+      const statusIcons = {
+        completed: '\u2713',
+        active: '\u25B6',
+        pending: '\u25CB',
+        paused: '\u275A\u275A',
+        failed: '\u2717',
+        cancelled: '\u2014',
+      };
+
+      for (const t of tasksToShow) {
+        const chip = document.createElement('span');
+        chip.className = `task-chip ${t.status}`;
+        const progress = t.maxSteps ? ` (${t.stepsCompleted || 0}/${t.maxSteps})` : '';
+        const priority = t.priority && t.priority !== 'normal' ? ` [${t.priority.toUpperCase()}]` : '';
+        chip.title = `${t.description}\nStatus: ${t.status}${priority}\nProgress: ${t.stepsCompleted || 0}/${t.maxSteps || '?'} steps${t.findings ? '\n\nFindings: ' + t.findings.slice(0, 300) : ''}`;
+        chip.innerHTML = `<span class="icon">${statusIcons[t.status] || '?'}</span>${t.description.slice(0, 35)}${progress}`;
+        container.appendChild(chip);
+      }
+    }
+
+    // If no session and no tasks at all, show idle with active task count
+    if (!hasSession && activeTasks.length === 0 && !hasTasks) {
+      // truly idle
+    } else if (!hasSession && activeTasks.length > 0) {
+      // Worker should be working on these — show in label
+      const next = activeTasks[0];
+      label.className = 'label active';
+      label.innerHTML = `<span class="pulse-dot"></span>${escapeHtml(next.description.length > 50 ? next.description.slice(0, 47) + '...' : next.description)}`;
     }
   }
 

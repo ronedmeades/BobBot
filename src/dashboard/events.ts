@@ -12,7 +12,12 @@ export interface BobEventMap {
   "message:in": { userId: string; text: string; source: "telegram" | "dashboard" };
   "message:out": { userId: string; text: string };
   "task:update": { taskId: string; status: string; description: string };
+  "agent:status": { userId: string; status: "thinking" | "tool_use" | "done"; detail?: string };
   "bot:status": { running: boolean };
+  "worker:start": { taskId: string; step: number; description: string };
+  "worker:progress": { taskId: string; step: number; findings: string; nextAction: string };
+  "worker:idle": Record<string, never>;
+  "worker:error": { taskId: string; error: string };
 }
 
 const BUFFER_SIZE = 50;

@@ -6,6 +6,9 @@ import { config } from "../config.js";
 import { events, type BobEvent } from "./events.js";
 import { runAgent } from "../agent/core.js";
 import { getTasksForUser } from "../tasks/runner.js";
+import { getTask, createTask, cancelTask, getAllTasks } from "../tasks/queue.js";
+import { getCurrentTaskId } from "../tasks/worker.js";
+import { getIsBusy, getActiveContext } from "../tasks/busy-state.js";
 import { memory } from "../agent/memory.js";
 import { startBot, stopBot, isBotRunning } from "../bot/telegram.js";
 
@@ -89,8 +92,64 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // GET /api/tasks
   if (method === "GET" && url === "/api/tasks") {
-    const tasks = getTasksForUser(OWNER_USER_ID);
+    const tasks = await getTasksForUser(OWNER_USER_ID);
     json(res, tasks);
+    return;
+  }
+
+  // GET /api/tasks/:id
+  const taskIdMatch = url.match(/^\/api\/tasks\/([a-f0-9-]+)$/);
+  if (method === "GET" && taskIdMatch) {
+    const task = await getTask(taskIdMatch[1]);
+    if (!task) {
+      error(res, "Task not found", 404);
+      return;
+    }
+    json(res, task);
+    return;
+  }
+
+  // POST /api/tasks — create a background task
+  if (method === "POST" && url === "/api/tasks") {
+    try {
+      const body = JSON.parse(await readBody(req)) as { description?: string; priority?: string };
+      if (!body.description) {
+        error(res, "Missing 'description' field");
+        return;
+      }
+      const task = await createTask({
+        userId: OWNER_USER_ID,
+        description: body.description,
+        priority: (body.priority as "low" | "normal" | "high" | "urgent") ?? "normal",
+        createdBy: "dashboard",
+      });
+      json(res, task, 201);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      error(res, msg, 500);
+    }
+    return;
+  }
+
+  // POST /api/tasks/:id/cancel
+  const cancelMatch = url.match(/^\/api\/tasks\/([a-f0-9-]+)\/cancel$/);
+  if (method === "POST" && cancelMatch) {
+    const task = await cancelTask(cancelMatch[1]);
+    if (!task) {
+      error(res, "Task not found", 404);
+      return;
+    }
+    json(res, task);
+    return;
+  }
+
+  // GET /api/worker/status
+  if (method === "GET" && url === "/api/worker/status") {
+    json(res, {
+      busy: getIsBusy(),
+      context: getActiveContext(),
+      currentTaskId: getCurrentTaskId(),
+    });
     return;
   }
 

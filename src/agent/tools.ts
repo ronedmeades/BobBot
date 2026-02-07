@@ -8,6 +8,7 @@ import { gmailToolDefinitions } from "../skills/gmail.js";
 import { webMonitorToolDefinitions } from "../skills/web-monitor.js";
 import { visionToolDefinitions } from "../skills/vision.js";
 import { formFillerToolDefinitions } from "../skills/form-filler.js";
+import { taskManagerToolDefinitions } from "../skills/task-manager.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -208,6 +209,8 @@ const builtinTools: ToolDefinition[] = [
   ...visionToolDefinitions,
   // Form filling & personal data vault
   ...formFillerToolDefinitions,
+  // Background task management
+  ...taskManagerToolDefinitions,
 ];
 
 /**

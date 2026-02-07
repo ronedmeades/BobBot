@@ -57,6 +57,14 @@ import {
   handleFillFormFields,
   handleSuggestFormMapping,
 } from "../skills/form-filler.js";
+import {
+  handleCreateBackgroundTask,
+  handleListBackgroundTasks,
+  handleGetTaskDetails,
+  handleCancelBackgroundTask,
+  handleUpdateTaskPriority,
+  handlePauseResumeTask,
+} from "../skills/task-manager.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -179,6 +187,19 @@ export async function executeTool(
         return await handleFillFormFields(input);
       case "suggest_form_mapping":
         return await handleSuggestFormMapping(input);
+      // Background task management
+      case "create_background_task":
+        return await handleCreateBackgroundTask(input, context);
+      case "list_background_tasks":
+        return await handleListBackgroundTasks();
+      case "get_task_details":
+        return await handleGetTaskDetails(input);
+      case "cancel_background_task":
+        return await handleCancelBackgroundTask(input);
+      case "update_task_priority":
+        return await handleUpdateTaskPriority(input);
+      case "pause_resume_task":
+        return await handlePauseResumeTask(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

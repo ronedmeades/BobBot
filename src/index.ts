@@ -3,6 +3,8 @@ import { createBot, startBot, stopBot } from "./bot/telegram.js";
 import { memory } from "./agent/memory.js";
 import { initTools } from "./agent/tools.js";
 import { startScheduler, stopScheduler } from "./tasks/scheduler.js";
+import { initTaskQueue } from "./tasks/queue.js";
+import { startWorker, stopWorker, setWorkerNotifier } from "./tasks/worker.js";
 import { startDashboard } from "./dashboard/server.js";
 import { events } from "./dashboard/events.js";
 
@@ -32,12 +34,17 @@ async function main(): Promise<void> {
   // Start dashboard HTTP server
   startDashboard();
 
+  // Initialize persistent task queue + background worker
+  await initTaskQueue();
+  startWorker();
+
   // Start scheduler (auto-backup, scheduled tasks, web monitors)
   await startScheduler();
 
   // Graceful shutdown
   const stop = () => {
     console.log("\nShutting down Bob...");
+    stopWorker();
     stopScheduler();
     stopBot();
     process.exit(0);
