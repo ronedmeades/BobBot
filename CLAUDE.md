@@ -164,6 +164,7 @@ bob/
     │   ├── weather.ts           # Weather and forecasts via wttr.in (no API key)
     │   ├── translation.ts       # LLM-powered translation and language detection
     │   ├── browser.ts           # Playwright browser automation (Chromium, lazy-launched)
+    │   ├── phone.ts             # Twilio phone calls & SMS (owner-only, no new deps)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     └── tasks/
         ├── types.ts       # Task state types (pending/running/completed/failed)
@@ -201,7 +202,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~97 total across 25 skill modules)
+### Available Tools (~100 total across 26 skill modules)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -413,6 +414,13 @@ Both share conversation history via the owner's user ID.
 | `take_screenshot` | Screenshot the current page (viewport or full page) |
 | `close_browser` | Close the browser instance |
 
+**Phone Calls & SMS (3)** — requires Twilio account:
+| Tool | What It Does |
+|------|-------------|
+| `call_owner` | Outbound TTS phone call to owner via Twilio (configurable voice) |
+| `send_sms` | Send SMS text message to owner |
+| `get_call_status` | Check call progress/status by Call SID |
+
 ### Event Bus (src/dashboard/events.ts)
 
 Typed EventEmitter singleton. All modules emit events, the SSE endpoint streams them
@@ -516,8 +524,8 @@ pnpm test             # Run tests (vitest)
 - SQLite for task history and structured memory
 
 ### Phase 4: Voice
+- ~~Twilio for phone calls~~ ✓ Done — `call_owner`, `send_sms`, `get_call_status`
 - Telegram voice messages via Whisper transcription
-- Twilio for phone calls
 - Text-to-speech for responses
 
 ### Phase 5: Smart Home
