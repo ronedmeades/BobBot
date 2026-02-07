@@ -48,7 +48,7 @@ export async function loadContacts(): Promise<Contact[]> {
   }
 }
 
-async function saveContacts(contacts: Contact[]): Promise<void> {
+export async function saveContacts(contacts: Contact[]): Promise<void> {
   const store: ContactStore = { version: 1, contacts };
   await mkdir(dirname(CONTACTS_PATH), { recursive: true });
   await writeFile(CONTACTS_PATH, JSON.stringify(store, null, 2), "utf-8");

@@ -145,7 +145,7 @@ bob/
     │   ├── batch-lister.ts      # Vision-powered batch poster→eBay listing workflow
     │   ├── backup.ts            # Backup/restore Bob to external drive
     │   ├── scheduler.ts         # Cron-like scheduled/recurring tasks
-    │   ├── gmail.ts             # Gmail: check, read, send, search, summarize
+    │   ├── gmail.ts             # Gmail: check, read, send, search, summarize + Google Contacts import
     │   ├── web-monitor.ts       # URL change detection, keyword tracking (HN/Reddit)
     │   ├── vision.ts            # Claude image analysis, poster-to-listing
     │   ├── form-filler.ts       # Personal data vault with fuzzy field matching
@@ -202,7 +202,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~100 total across 26 skill modules)
+### Available Tools (~102 total across 26 skill modules)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -268,7 +268,7 @@ Both share conversation history via the owner's user ID.
 | `list_scheduled_tasks` | List all scheduled tasks |
 | `run_scheduled_task` | Manually trigger a scheduled task |
 
-**Gmail (5)** — requires GMAIL_* env vars:
+**Gmail & Google Contacts (7)** — requires GMAIL_* env vars:
 | Tool | What It Does |
 |------|-------------|
 | `check_email` | Check for new/unread emails |
@@ -276,6 +276,8 @@ Both share conversation history via the owner's user ID.
 | `send_email` | Send an email |
 | `search_email` | Search emails by query |
 | `get_email_summary` | Get a summary of recent emails |
+| `import_google_contacts` | Import Google contacts into Bob's address book (dedup by email) |
+| `list_google_contacts` | Preview Google contacts without importing |
 
 **Web Monitoring (5):**
 | Tool | What It Does |

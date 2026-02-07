@@ -143,6 +143,37 @@ function extractBody(message: GmailMessage): string {
   return "(no body)";
 }
 
+// --- Google People API (Contacts) ---
+
+const PEOPLE_API = "https://people.googleapis.com/v1";
+
+async function peopleGet(path: string, token: string): Promise<unknown> {
+  const response = await fetch(`${PEOPLE_API}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Google People API error (${response.status}): ${text}`);
+  }
+  return response.json();
+}
+
+interface GooglePerson {
+  resourceName?: string;
+  names?: Array<{ displayName?: string; givenName?: string; familyName?: string }>;
+  emailAddresses?: Array<{ value?: string; type?: string }>;
+  phoneNumbers?: Array<{ value?: string; type?: string }>;
+  organizations?: Array<{ name?: string; title?: string }>;
+  addresses?: Array<{ formattedValue?: string; type?: string }>;
+}
+
+interface GoogleConnectionsResponse {
+  connections?: GooglePerson[];
+  totalPeople?: number;
+  totalItems?: number;
+  nextPageToken?: string;
+}
+
 // --- Tool Definitions ---
 
 export const gmailToolDefinitions: Anthropic.Tool[] = [
@@ -224,6 +255,44 @@ export const gmailToolDefinitions: Anthropic.Tool[] = [
         hours: {
           type: "number",
           description: "Look back this many hours (default: 24)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "import_google_contacts",
+    description:
+      "Import contacts from the user's Google account into Bob's address book. Uses the same Gmail OAuth credentials. Handles duplicates by matching on email — existing contacts are updated, new ones are added. Returns a summary of what was imported.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        max_results: {
+          type: "number",
+          description: "Maximum contacts to import (default: 100, max: 2000)",
+        },
+        tag: {
+          type: "string",
+          description: "Optional tag to apply to all imported contacts (e.g. 'gmail-import')",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "list_google_contacts",
+    description:
+      "List contacts from the user's Google account WITHOUT importing them. Use this to preview what would be imported, or to look up a specific contact in Google.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        max_results: {
+          type: "number",
+          description: "Maximum contacts to list (default: 20)",
+        },
+        query: {
+          type: "string",
+          description: "Optional search query to filter contacts by name or email",
         },
       },
       required: [],
@@ -390,4 +459,207 @@ export async function handleGetEmailSummary(input: Record<string, unknown>): Pro
     success: true,
     output: `Email Summary (last ${hours} hours):\n\nUnread: ${unreadCount}\nNew messages: ${totalRecent}\n\nTop senders:\n${topSenders || "- none"}\n\nRecent subjects:\n${subjects.join("\n") || "- none"}`,
   };
+}
+
+// --- Google Contacts Handlers ---
+
+function parseGooglePerson(person: GooglePerson): {
+  name: string;
+  email?: string;
+  phone?: string;
+  company?: string;
+  role?: string;
+  address?: string;
+} {
+  return {
+    name: person.names?.[0]?.displayName ?? "(no name)",
+    email: person.emailAddresses?.[0]?.value,
+    phone: person.phoneNumbers?.[0]?.value,
+    company: person.organizations?.[0]?.name,
+    role: person.organizations?.[0]?.title,
+    address: person.addresses?.[0]?.formattedValue,
+  };
+}
+
+async function fetchAllGoogleContacts(
+  token: string,
+  maxResults: number,
+  query?: string,
+): Promise<GooglePerson[]> {
+  const all: GooglePerson[] = [];
+  let pageToken: string | undefined;
+  const pageSize = Math.min(maxResults, 100); // API max per page
+
+  // Use searchContacts for queries, listConnections otherwise
+  if (query) {
+    const params = new URLSearchParams({
+      query,
+      readMask: "names,emailAddresses,phoneNumbers,organizations,addresses",
+      pageSize: String(Math.min(maxResults, 30)), // search has lower limit
+    });
+    const data = (await peopleGet(
+      `/people:searchContacts?${params}`,
+      token,
+    )) as { results?: Array<{ person: GooglePerson }> };
+    return (data.results ?? []).map((r) => r.person);
+  }
+
+  while (all.length < maxResults) {
+    const params = new URLSearchParams({
+      personFields: "names,emailAddresses,phoneNumbers,organizations,addresses",
+      pageSize: String(pageSize),
+      sortOrder: "FIRST_NAME_ASCENDING",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const data = (await peopleGet(
+      `/people/me/connections?${params}`,
+      token,
+    )) as GoogleConnectionsResponse;
+
+    if (data.connections) {
+      all.push(...data.connections);
+    }
+
+    if (!data.nextPageToken || all.length >= maxResults) break;
+    pageToken = data.nextPageToken;
+  }
+
+  return all.slice(0, maxResults);
+}
+
+export async function handleListGoogleContacts(
+  input: Record<string, unknown>,
+): Promise<ToolResult> {
+  const config = getGmailConfig();
+  const token = await getAccessToken(config);
+  const maxResults = Math.min((input.max_results as number) ?? 20, 100);
+  const query = input.query as string | undefined;
+
+  try {
+    const people = await fetchAllGoogleContacts(token, maxResults, query);
+
+    if (people.length === 0) {
+      return { success: true, output: query ? `No Google contacts matching "${query}".` : "No contacts found in Google account." };
+    }
+
+    const lines = people.map((p, i) => {
+      const parsed = parseGooglePerson(p);
+      const parts = [parsed.name];
+      if (parsed.email) parts.push(parsed.email);
+      if (parsed.phone) parts.push(parsed.phone);
+      if (parsed.company) parts.push(parsed.company);
+      return `${i + 1}. ${parts.join(" | ")}`;
+    });
+
+    return {
+      success: true,
+      output: `Google Contacts (${people.length}):\n\n${lines.join("\n")}`,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("403") || msg.includes("insufficient")) {
+      return {
+        success: false,
+        output: `Google Contacts API access denied. Your OAuth token may need the "contacts.readonly" scope.\n\nTo fix: re-run the OAuth consent flow with the People API enabled and contacts.readonly scope.\n\nError: ${msg}`,
+      };
+    }
+    return { success: false, output: `Failed to list Google contacts: ${msg}` };
+  }
+}
+
+export async function handleImportGoogleContacts(
+  input: Record<string, unknown>,
+): Promise<ToolResult> {
+  const config = getGmailConfig();
+  const token = await getAccessToken(config);
+  const maxResults = Math.min((input.max_results as number) ?? 100, 2000);
+  const tag = (input.tag as string) ?? "google";
+
+  try {
+    const people = await fetchAllGoogleContacts(token, maxResults);
+
+    if (people.length === 0) {
+      return { success: true, output: "No contacts found in Google account." };
+    }
+
+    // Load existing Bob contacts
+    const { loadContacts, saveContacts } = await import("./contacts.js");
+    const existing = await loadContacts();
+    const existingByEmail = new Map<string, number>();
+    existing.forEach((c, i) => {
+      if (c.email) existingByEmail.set(c.email.toLowerCase(), i);
+    });
+
+    let added = 0;
+    let updated = 0;
+    let skipped = 0;
+    const now = new Date().toISOString();
+
+    for (const person of people) {
+      const parsed = parseGooglePerson(person);
+      if (parsed.name === "(no name)" && !parsed.email) {
+        skipped++;
+        continue;
+      }
+
+      const emailKey = parsed.email?.toLowerCase();
+
+      if (emailKey && existingByEmail.has(emailKey)) {
+        // Update existing contact with any new fields from Google
+        const idx = existingByEmail.get(emailKey)!;
+        const contact = existing[idx];
+        let changed = false;
+
+        if (parsed.phone && !contact.phone) { contact.phone = parsed.phone; changed = true; }
+        if (parsed.company && !contact.company) { contact.company = parsed.company; changed = true; }
+        if (parsed.role && !contact.role) { contact.role = parsed.role; changed = true; }
+        if (parsed.address && !contact.address) { contact.address = parsed.address; changed = true; }
+        if (!contact.tags?.includes(tag)) {
+          contact.tags = [...(contact.tags ?? []), tag];
+          changed = true;
+        }
+
+        if (changed) {
+          contact.updated_at = now;
+          updated++;
+        } else {
+          skipped++;
+        }
+      } else {
+        // Add new contact
+        const { randomUUID } = await import("node:crypto");
+        existing.push({
+          id: randomUUID().slice(0, 8),
+          name: parsed.name,
+          email: parsed.email,
+          phone: parsed.phone,
+          company: parsed.company,
+          role: parsed.role,
+          address: parsed.address,
+          tags: [tag],
+          created_at: now,
+          updated_at: now,
+        });
+        added++;
+      }
+    }
+
+    // Save back through the contacts module
+    await saveContacts(existing);
+
+    return {
+      success: true,
+      output: `Google Contacts import complete!\n\nTotal from Google: ${people.length}\nNew contacts added: ${added}\nExisting contacts updated: ${updated}\nSkipped (no changes or no name): ${skipped}\n\nAll imported contacts tagged with "${tag}".`,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("403") || msg.includes("insufficient")) {
+      return {
+        success: false,
+        output: `Google Contacts API access denied. Your OAuth token may need the "contacts.readonly" scope.\n\nTo fix: re-run the OAuth consent flow with the People API enabled and contacts.readonly scope.\n\nError: ${msg}`,
+      };
+    }
+    return { success: false, output: `Failed to import Google contacts: ${msg}` };
+  }
 }

@@ -232,6 +232,7 @@ Bob has **100 tools across 26 skill modules**. Here's what he can do out of the 
 - **Phone calls** — Bob can call your phone and speak a message aloud (needs Twilio)
 - **SMS** — send text messages to your phone (needs Twilio)
 - **Send email** — via Gmail (needs Gmail API keys)
+- **Import Google Contacts** — pull contacts from Google into Bob's address book
 
 **System:**
 - **File organizer** — scan folders, organize by type or date, find duplicates

@@ -42,6 +42,8 @@ import {
   handleSendEmail,
   handleSearchEmail,
   handleGetEmailSummary,
+  handleImportGoogleContacts,
+  handleListGoogleContacts,
 } from "../skills/gmail.js";
 import {
   handleWatchUrl,
@@ -258,6 +260,11 @@ export async function executeTool(
         return await handleSearchEmail(input);
       case "get_email_summary":
         return await handleGetEmailSummary(input);
+      // Google Contacts (via People API, same OAuth)
+      case "import_google_contacts":
+        return await handleImportGoogleContacts(input);
+      case "list_google_contacts":
+        return await handleListGoogleContacts(input);
       // Web monitoring skills
       case "watch_url":
         return await handleWatchUrl(input);
