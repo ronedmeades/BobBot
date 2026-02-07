@@ -181,6 +181,93 @@ export const ebayToolDefinitions: Anthropic.Tool[] = [
       required: ["item_id"],
     },
   },
+  {
+    name: "get_seller_listings",
+    description:
+      "Fetch active listings from the eBay seller account. Returns titles, prices, SKUs, and offer IDs. Use to review current listings, learn listing style, or prepare for bulk updates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        limit: {
+          type: "number",
+          description: "Max items to return (default: 25, max: 200)",
+        },
+        offset: {
+          type: "number",
+          description: "Pagination offset (default: 0)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "update_ebay_listing",
+    description:
+      "Update an existing eBay listing's price, title, description, or item specifics. Requires SKU (for title/description) and/or offer ID (for price). Use get_seller_listings to find these IDs.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        sku: {
+          type: "string",
+          description: "SKU of the inventory item (for title/description/image changes)",
+        },
+        offer_id: {
+          type: "string",
+          description: "Offer ID (for price changes)",
+        },
+        title: {
+          type: "string",
+          description: "New listing title (max 80 characters)",
+        },
+        description: {
+          type: "string",
+          description: "New HTML description",
+        },
+        price: {
+          type: "number",
+          description: "New price in USD",
+        },
+        image_urls: {
+          type: "array",
+          items: { type: "string" },
+          description: "New image URLs (replaces existing)",
+        },
+        item_specifics: {
+          type: "object",
+          description: "Updated item specifics (merged with existing)",
+          additionalProperties: { type: "string" },
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "bulk_update_prices",
+    description:
+      "Adjust prices on all active eBay listings by percentage or fixed amount. Smart rounding: under $10 rounds to .99, $10-$50 to .95, over $50 to whole dollar. Has preview mode.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        percentage: {
+          type: "number",
+          description: "Percentage to adjust by (e.g. 15 for +15%, -10 for -10%). Use this OR fixed_amount.",
+        },
+        fixed_amount: {
+          type: "number",
+          description: "Fixed dollar amount to add/subtract (e.g. 5 for +$5). Use this OR percentage.",
+        },
+        preview: {
+          type: "boolean",
+          description: "If true, show changes without applying (default: false)",
+        },
+        sku_filter: {
+          type: "string",
+          description: "Only update SKUs starting with this prefix (e.g. 'poster-')",
+        },
+      },
+      required: [],
+    },
+  },
 ];
 
 // --- Tool Handlers ---
@@ -455,5 +542,415 @@ export async function handleGetEbayListingStatus(input: Record<string, unknown>)
   return {
     success: true,
     output: JSON.stringify(data, null, 2),
+  };
+}
+
+// --- Get seller listings ---
+
+export async function handleGetSellerListings(input: Record<string, unknown>): Promise<ToolResult> {
+  const ebayConfig = getEbayConfig();
+  const token = await getAccessToken(ebayConfig);
+  const baseUrl = getBaseUrl(ebayConfig.environment);
+  const limit = Math.min((input.limit as number) ?? 25, 200);
+  const offset = (input.offset as number) ?? 0;
+
+  const invResponse = await fetch(
+    `${baseUrl}/sell/inventory/v1/inventory_item?limit=${limit}&offset=${offset}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+
+  if (!invResponse.ok) {
+    const text = await invResponse.text();
+    return { success: false, output: `Failed to fetch inventory: ${text}` };
+  }
+
+  const invData = (await invResponse.json()) as {
+    total: number;
+    inventoryItems?: Array<{
+      sku: string;
+      product?: { title?: string; description?: string };
+      availability?: { shipToLocationAvailability?: { quantity?: number } };
+    }>;
+  };
+
+  if (!invData.inventoryItems || invData.inventoryItems.length === 0) {
+    return { success: true, output: "No active inventory items found." };
+  }
+
+  const listings: Array<{
+    sku: string;
+    title: string;
+    price: string;
+    offerId: string;
+    quantity: number;
+  }> = [];
+
+  for (const item of invData.inventoryItems) {
+    try {
+      const offerResponse = await fetch(
+        `${baseUrl}/sell/inventory/v1/offer?sku=${encodeURIComponent(item.sku)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (offerResponse.ok) {
+        const offerData = (await offerResponse.json()) as {
+          offers?: Array<{
+            offerId: string;
+            pricingSummary?: { price?: { value?: string; currency?: string } };
+            availableQuantity?: number;
+          }>;
+        };
+
+        const offer = offerData.offers?.[0];
+        listings.push({
+          sku: item.sku,
+          title: item.product?.title ?? "(no title)",
+          price: offer?.pricingSummary?.price?.value ?? "?",
+          offerId: offer?.offerId ?? "",
+          quantity: offer?.availableQuantity ?? item.availability?.shipToLocationAvailability?.quantity ?? 0,
+        });
+      }
+    } catch {
+      listings.push({
+        sku: item.sku,
+        title: item.product?.title ?? "(no title)",
+        price: "?",
+        offerId: "",
+        quantity: 0,
+      });
+    }
+  }
+
+  const formatted = listings
+    .map(
+      (l, i) =>
+        `${i + 1}. [${l.sku}] ${l.title}\n   Price: $${l.price} | Qty: ${l.quantity} | Offer: ${l.offerId}`
+    )
+    .join("\n");
+
+  return {
+    success: true,
+    output: `Active listings (${listings.length} of ${invData.total} total, offset ${offset}):\n\n${formatted}`,
+  };
+}
+
+// --- Update existing listing ---
+
+export async function handleUpdateEbayListing(input: Record<string, unknown>): Promise<ToolResult> {
+  const ebayConfig = getEbayConfig();
+  const token = await getAccessToken(ebayConfig);
+  const baseUrl = getBaseUrl(ebayConfig.environment);
+  const sku = input.sku as string | undefined;
+  const offerId = input.offer_id as string | undefined;
+  const title = input.title as string | undefined;
+  const description = input.description as string | undefined;
+  const price = input.price as number | undefined;
+  const imageUrls = input.image_urls as string[] | undefined;
+  const itemSpecifics = input.item_specifics as Record<string, string> | undefined;
+
+  if (!sku && !offerId) {
+    return { success: false, output: "Must provide at least one of: sku (for inventory updates) or offer_id (for price updates)" };
+  }
+
+  const updates: string[] = [];
+
+  // Update inventory item (title, description, images, specifics)
+  if (sku && (title || description || imageUrls || itemSpecifics)) {
+    const getResponse = await fetch(
+      `${baseUrl}/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (!getResponse.ok) {
+      const text = await getResponse.text();
+      return { success: false, output: `Failed to fetch inventory item: ${text}` };
+    }
+
+    const currentItem = (await getResponse.json()) as Record<string, unknown>;
+    const product = (currentItem.product ?? {}) as Record<string, unknown>;
+
+    if (title) product.title = title;
+    if (description) product.description = description;
+    if (imageUrls) product.imageUrls = imageUrls;
+    if (itemSpecifics) {
+      const existingAspects = (product.aspects ?? {}) as Record<string, string[]>;
+      for (const [k, v] of Object.entries(itemSpecifics)) {
+        existingAspects[k] = [v];
+      }
+      product.aspects = existingAspects;
+    }
+    currentItem.product = product;
+
+    const putResponse = await fetch(
+      `${baseUrl}/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Content-Language": "en-US",
+        },
+        body: JSON.stringify(currentItem),
+      }
+    );
+
+    if (!putResponse.ok) {
+      const text = await putResponse.text();
+      return { success: false, output: `Failed to update inventory item: ${text}` };
+    }
+
+    const changed = [title && "title", description && "description", imageUrls && "images", itemSpecifics && "specifics"].filter(Boolean).join(", ");
+    updates.push(`Inventory item ${sku} updated (${changed})`);
+  }
+
+  // Update offer (price)
+  if (offerId && price !== undefined) {
+    const getResponse = await fetch(
+      `${baseUrl}/sell/inventory/v1/offer/${offerId}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (!getResponse.ok) {
+      const text = await getResponse.text();
+      return { success: false, output: `Failed to fetch offer: ${text}` };
+    }
+
+    const currentOffer = (await getResponse.json()) as Record<string, unknown>;
+    const pricingSummary = (currentOffer.pricingSummary ?? {}) as Record<string, unknown>;
+    pricingSummary.price = { value: price.toFixed(2), currency: "USD" };
+    currentOffer.pricingSummary = pricingSummary;
+
+    const putResponse = await fetch(
+      `${baseUrl}/sell/inventory/v1/offer/${offerId}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          "Content-Language": "en-US",
+        },
+        body: JSON.stringify(currentOffer),
+      }
+    );
+
+    if (!putResponse.ok) {
+      const text = await putResponse.text();
+      return { success: false, output: `Failed to update offer: ${text}` };
+    }
+
+    updates.push(`Offer ${offerId} price updated to $${price.toFixed(2)}`);
+  }
+
+  if (updates.length === 0) {
+    return { success: false, output: "No updates specified. Provide title, description, price, image_urls, or item_specifics." };
+  }
+
+  return { success: true, output: updates.join("\n") };
+}
+
+// --- Bulk price update with smart rounding ---
+
+function smartRoundPrice(rawPrice: number): number {
+  if (rawPrice <= 0) return 0.99;
+  if (rawPrice < 10) {
+    return Math.floor(rawPrice) + 0.99;
+  } else if (rawPrice <= 50) {
+    return Math.floor(rawPrice) + 0.95;
+  } else {
+    return Math.round(rawPrice);
+  }
+}
+
+export async function handleBulkUpdatePrices(input: Record<string, unknown>): Promise<ToolResult> {
+  const percentage = input.percentage as number | undefined;
+  const fixedAmount = input.fixed_amount as number | undefined;
+  const preview = (input.preview as boolean) ?? false;
+  const skuFilter = input.sku_filter as string | undefined;
+
+  if (percentage === undefined && fixedAmount === undefined) {
+    return { success: false, output: "Must provide either percentage or fixed_amount." };
+  }
+  if (percentage !== undefined && fixedAmount !== undefined) {
+    return { success: false, output: "Provide percentage OR fixed_amount, not both." };
+  }
+
+  const ebayConfig = getEbayConfig();
+  const token = await getAccessToken(ebayConfig);
+  const baseUrl = getBaseUrl(ebayConfig.environment);
+
+  // Fetch all inventory items (paginate)
+  const allItems: Array<{ sku: string; title: string }> = [];
+  let offset = 0;
+  const pageSize = 100;
+
+  while (true) {
+    const response = await fetch(
+      `${baseUrl}/sell/inventory/v1/inventory_item?limit=${pageSize}&offset=${offset}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (!response.ok) {
+      const text = await response.text();
+      return { success: false, output: `Failed to fetch inventory: ${text}` };
+    }
+
+    const data = (await response.json()) as {
+      total: number;
+      inventoryItems?: Array<{ sku: string; product?: { title?: string } }>;
+    };
+
+    if (!data.inventoryItems || data.inventoryItems.length === 0) break;
+
+    for (const item of data.inventoryItems) {
+      if (skuFilter && !item.sku.startsWith(skuFilter)) continue;
+      allItems.push({
+        sku: item.sku,
+        title: item.product?.title ?? "(no title)",
+      });
+    }
+
+    if (offset + pageSize >= data.total) break;
+    offset += pageSize;
+  }
+
+  if (allItems.length === 0) {
+    return { success: true, output: "No matching inventory items found." };
+  }
+
+  // Get offers and compute new prices
+  const changes: Array<{
+    sku: string;
+    title: string;
+    offerId: string;
+    oldPrice: number;
+    newPrice: number;
+  }> = [];
+
+  for (const item of allItems) {
+    try {
+      const offerResponse = await fetch(
+        `${baseUrl}/sell/inventory/v1/offer?sku=${encodeURIComponent(item.sku)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!offerResponse.ok) continue;
+
+      const offerData = (await offerResponse.json()) as {
+        offers?: Array<{
+          offerId: string;
+          pricingSummary?: { price?: { value?: string } };
+        }>;
+      };
+
+      const offer = offerData.offers?.[0];
+      if (!offer?.offerId || !offer.pricingSummary?.price?.value) continue;
+
+      const oldPrice = parseFloat(offer.pricingSummary.price.value);
+      let rawNew: number;
+
+      if (percentage !== undefined) {
+        rawNew = oldPrice * (1 + percentage / 100);
+      } else {
+        rawNew = oldPrice + (fixedAmount ?? 0);
+      }
+
+      const newPrice = smartRoundPrice(rawNew);
+
+      changes.push({
+        sku: item.sku,
+        title: item.title,
+        offerId: offer.offerId,
+        oldPrice,
+        newPrice,
+      });
+    } catch {
+      // skip items with errors
+    }
+  }
+
+  if (changes.length === 0) {
+    return { success: true, output: "No listings with valid offers found to update." };
+  }
+
+  const changeDesc =
+    percentage !== undefined
+      ? `${percentage > 0 ? "+" : ""}${percentage}%`
+      : `${(fixedAmount ?? 0) > 0 ? "+" : ""}$${(fixedAmount ?? 0).toFixed(2)}`;
+
+  const changeLines = changes
+    .map(
+      (c) =>
+        `  ${c.title.slice(0, 50).padEnd(50)} $${c.oldPrice.toFixed(2)} -> $${c.newPrice.toFixed(2)}`
+    )
+    .join("\n");
+
+  if (preview) {
+    return {
+      success: true,
+      output: `PREVIEW — Price adjustment: ${changeDesc} (${changes.length} listings)\n\n${changeLines}\n\nRun again with preview=false to apply.`,
+    };
+  }
+
+  // Apply changes
+  let updated = 0;
+  let errors = 0;
+
+  for (const change of changes) {
+    try {
+      const getResponse = await fetch(
+        `${baseUrl}/sell/inventory/v1/offer/${change.offerId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!getResponse.ok) {
+        errors++;
+        continue;
+      }
+
+      const currentOffer = (await getResponse.json()) as Record<string, unknown>;
+      const pricing = (currentOffer.pricingSummary ?? {}) as Record<string, unknown>;
+      pricing.price = { value: change.newPrice.toFixed(2), currency: "USD" };
+      currentOffer.pricingSummary = pricing;
+
+      const putResponse = await fetch(
+        `${baseUrl}/sell/inventory/v1/offer/${change.offerId}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+            "Content-Language": "en-US",
+          },
+          body: JSON.stringify(currentOffer),
+        }
+      );
+
+      if (putResponse.ok) {
+        updated++;
+      } else {
+        errors++;
+      }
+    } catch {
+      errors++;
+    }
+  }
+
+  return {
+    success: true,
+    output: `Price update complete (${changeDesc}):\n  Updated: ${updated}\n  Errors: ${errors}\n\n${changeLines}`,
   };
 }

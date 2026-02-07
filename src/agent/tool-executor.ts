@@ -15,10 +15,15 @@ import {
   handleSearchEbayCategory,
   handleGenerateListingContent,
   handleGetEbayListingStatus,
+  handleGetSellerListings,
+  handleUpdateEbayListing,
+  handleBulkUpdatePrices,
 } from "../skills/ebay-listing.js";
 import {
   handleBatchListPosters,
   handleBatchListStatus,
+  handleReviewBatchSamples,
+  handleApproveBatch,
 } from "../skills/batch-lister.js";
 import {
   handleBackupBob,
@@ -126,11 +131,21 @@ export async function executeTool(
         return await handleGenerateListingContent(input);
       case "get_ebay_listing_status":
         return await handleGetEbayListingStatus(input);
+      case "get_seller_listings":
+        return await handleGetSellerListings(input);
+      case "update_ebay_listing":
+        return await handleUpdateEbayListing(input);
+      case "bulk_update_prices":
+        return await handleBulkUpdatePrices(input);
       // Batch workflow skills
       case "batch_list_posters":
         return await handleBatchListPosters(input);
       case "batch_list_status":
         return await handleBatchListStatus(input);
+      case "review_batch_samples":
+        return await handleReviewBatchSamples(input);
+      case "approve_batch":
+        return await handleApproveBatch(input);
       // Backup & restore skills
       case "backup_bob":
         return await handleBackupBob(input);
