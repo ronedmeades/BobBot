@@ -248,7 +248,8 @@ export async function handleMarketplaceListPlatforms(): Promise<ToolResult> {
     const envHint = !p.configured && p.requiredEnvVars.length > 0
       ? ` (needs: ${p.requiredEnvVars.join(", ")})`
       : "";
-    return `- ${p.displayName} (${p.platform}): ${status}${envHint}`;
+    const notes = p.notes ? ` -- ${p.notes}` : "";
+    return `- ${p.displayName} (${p.platform}): ${status}${envHint}${notes}`;
   });
 
   const configured = platforms.filter((p) => p.configured);

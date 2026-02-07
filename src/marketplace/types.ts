@@ -166,5 +166,7 @@ export interface AdapterFactory {
   platform: MarketplacePlatform;
   displayName: string;
   requiredEnvVars: string[];
+  /** Optional note about the adapter (e.g. "stub - no public API") */
+  notes?: string;
   create(): MarketplaceAdapter;
 }

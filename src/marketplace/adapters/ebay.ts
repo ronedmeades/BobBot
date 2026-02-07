@@ -465,5 +465,6 @@ export const ebayAdapterFactory: AdapterFactory = {
   platform: "ebay",
   displayName: "eBay",
   requiredEnvVars: ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_REFRESH_TOKEN"],
+  notes: "Uses same credentials as eBay listing tools. Orders via Fulfillment API, messages via Trading API.",
   create: () => new EbayMarketplaceAdapter(),
 };

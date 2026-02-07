@@ -35,12 +35,14 @@ export function listAdapters(): Array<{
   displayName: string;
   configured: boolean;
   requiredEnvVars: string[];
+  notes?: string;
 }> {
   return [...factories.values()].map((f) => ({
     platform: f.platform,
     displayName: f.displayName,
     configured: f.create().isConfigured(),
     requiredEnvVars: f.requiredEnvVars,
+    notes: f.notes,
   }));
 }
 

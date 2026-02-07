@@ -344,5 +344,6 @@ export const etsyAdapterFactory: AdapterFactory = {
   platform: "etsy",
   displayName: "Etsy",
   requiredEnvVars: ["ETSY_API_KEY", "ETSY_SHARED_SECRET", "ETSY_REFRESH_TOKEN", "ETSY_SHOP_ID"],
+  notes: "Etsy v3 REST API. Orders and fulfillment supported. Messages not available via API (use Etsy dashboard).",
   create: () => new EtsyMarketplaceAdapter(),
 };

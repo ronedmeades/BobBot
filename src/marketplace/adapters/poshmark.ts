@@ -65,5 +65,6 @@ export const poshmarkAdapterFactory: AdapterFactory = {
   platform: "poshmark",
   displayName: "Poshmark",
   requiredEnvVars: [],
+  notes: "STUB: Poshmark has no public API. Use browser automation or create a local adapter in local/skills/.",
   create: () => new PoshmarkStubAdapter(),
 };
