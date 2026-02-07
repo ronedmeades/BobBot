@@ -13,12 +13,12 @@ interface ToolResult {
 
 // --- Vault Types ---
 
-interface VaultField {
+export interface VaultField {
   value: string;
   label?: string;
 }
 
-interface VaultData {
+export interface VaultData {
   [category: string]: {
     [field: string]: VaultField;
   };
@@ -32,7 +32,7 @@ function getVaultPath(): string {
 
 // --- Vault I/O ---
 
-async function loadVault(): Promise<VaultData> {
+export async function loadVault(): Promise<VaultData> {
   const vaultPath = getVaultPath();
   try {
     const raw = await readFile(vaultPath, "utf-8");
@@ -93,12 +93,12 @@ function normalize(s: string): string {
     .replace(/\s+/g, " ");
 }
 
-interface FieldMatch {
+export interface FieldMatch {
   category: string;
   field: string;
 }
 
-function matchFieldToVault(formLabel: string): FieldMatch | null {
+export function matchFieldToVault(formLabel: string): FieldMatch | null {
   const normalized = normalize(formLabel);
   // Pass 1: Exact match against patterns
   for (const entry of FIELD_ALIASES) {

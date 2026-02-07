@@ -78,6 +78,17 @@ import {
   handleSearchInventory,
   handleGetInventoryStats,
 } from "../skills/inventory.js";
+import {
+  handleParsePdfForm,
+  handleFillPdfForm,
+} from "../skills/pdf-forms.js";
+import {
+  handleAddEvent,
+  handleListEvents,
+  handleUpdateEvent,
+  handleRemoveEvent,
+  handleCompleteEvent,
+} from "../skills/calendar.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -236,6 +247,22 @@ export async function executeTool(
         return await handleSearchInventory(input);
       case "get_inventory_stats":
         return await handleGetInventoryStats();
+      // PDF form skills
+      case "parse_pdf_form":
+        return await handleParsePdfForm(input);
+      case "fill_pdf_form":
+        return await handleFillPdfForm(input);
+      // Calendar & events
+      case "add_event":
+        return await handleAddEvent(input);
+      case "list_events":
+        return await handleListEvents(input);
+      case "update_event":
+        return await handleUpdateEvent(input);
+      case "remove_event":
+        return await handleRemoveEvent(input);
+      case "complete_event":
+        return await handleCompleteEvent(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

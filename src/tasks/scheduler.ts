@@ -5,6 +5,7 @@ import { handleBackupBob } from "../skills/backup.js";
 import { events } from "../dashboard/events.js";
 import { checkScheduledTasks, initScheduledTasks } from "../skills/scheduler.js";
 import { checkAllWatches } from "../skills/web-monitor.js";
+import { checkCalendarReminders } from "../skills/calendar.js";
 import { getIsBusy } from "./busy-state.js";
 
 /**
@@ -172,6 +173,18 @@ async function runAllChecks(): Promise<void> {
     }
   } catch (err) {
     console.error("[scheduler] Web monitor error:", err);
+  }
+
+  // Check calendar reminders
+  try {
+    const reminders = await checkCalendarReminders();
+    if (reminders.length > 0) {
+      await sendOwnerMessage(
+        `Calendar reminders:\n\n${reminders.join("\n\n")}`
+      );
+    }
+  } catch (err) {
+    console.error("[scheduler] Calendar reminder error:", err);
   }
 }
 
