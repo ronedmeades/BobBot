@@ -80,6 +80,8 @@ Waiting for Telegram messages...
 
 ### Optional Dependencies (installed when needed)
 - **sharp** — Image processing (required for image skills)
+- **pdf-lib** — PDF form parsing and filling
+- **exceljs** — Excel/spreadsheet reading
 
 ### Runtime
 - **Node.js**: v22+
@@ -98,32 +100,59 @@ bob/
 ├── .env                   # YOUR config — never committed (gitignored)
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
+├── local/                 # Local-only skills and personal data (gitignored)
+│   └── skills/            # Hot-loadable skill modules (auto-discovered at startup)
 ├── memory/                # Runtime user data — never committed (gitignored)
 │   ├── user-*.json        # Per-user conversation history
 │   ├── profile-*.json     # User profiles (name, preferences, notes)
-│   └── notes/             # Named notes saved by Bob
+│   ├── notes/             # Named notes saved by Bob
+│   ├── calendar.json      # Calendar events and reminders
+│   ├── inventory.json     # Indexed inventory data
+│   ├── task-queue.json    # Background task queue (persistent)
+│   └── vault.json         # Personal data vault for form filling
 └── src/
-    ├── index.ts           # Entry point — starts bot + dashboard, seeds owner profile
-    ├── config.ts          # Loads .env, validates required keys
+    ├── index.ts           # Entry point — starts bot + dashboard + scheduler, seeds owner profile
+    ├── config.ts          # Loads .env, validates required keys, multi-provider support
     ├── agent/
-    │   ├── core.ts        # THE BRAIN — agentic loop (Claude API + tool dispatch + events)
+    │   ├── core.ts        # THE BRAIN — agentic loop (LLM API + tool dispatch + events)
     │   ├── memory.ts      # Per-user conversation history + notes (JSON/markdown files)
-    │   ├── tools.ts       # Tool definitions (what Claude can choose to use)
+    │   ├── tools.ts       # Tool definitions (what the LLM can choose to use)
     │   └── tool-executor.ts  # Tool dispatch — routes tool calls to skill handlers
     ├── bot/
     │   └── telegram.ts    # Telegram bot: message handling, /task, /status, lifecycle
     ├── dashboard/
     │   ├── events.ts      # Global event bus — typed EventEmitter + 50-event ring buffer
-    │   ├── server.ts      # HTTP server (Node built-in) — API routes + SSE streaming
+    │   ├── server.ts      # HTTP server (Node built-in) — API routes + SSE + image serving
     │   └── public/
-    │       └── index.html # Single-file dashboard UI (vanilla HTML/CSS/JS, dark theme)
+    │       └── index.html # Single-file dashboard UI (vanilla HTML/CSS/JS, dark theme, inline images)
+    ├── providers/
+    │   ├── types.ts       # Provider-agnostic LLM interfaces (ToolDefinition, ChatOptions, VisionOptions)
+    │   ├── factory.ts     # Provider factory — creates cached provider instances
+    │   ├── anthropic.ts   # Anthropic/Claude provider
+    │   ├── openai.ts      # OpenAI provider
+    │   └── gemini.ts      # Google Gemini provider
     ├── skills/
     │   ├── image-processing.ts  # Resize, crop, convert, watermark, thumbnails (sharp)
-    │   ├── ebay-listing.ts      # eBay API: create listings, upload images, search categories
-    │   └── batch-lister.ts      # Orchestrator: batch process images → create eBay listings
+    │   ├── ebay-listing.ts      # eBay API: listings, images, categories, bulk price updates
+    │   ├── batch-lister.ts      # Vision-powered batch poster→eBay listing workflow
+    │   ├── backup.ts            # Backup/restore Bob to external drive
+    │   ├── scheduler.ts         # Cron-like scheduled/recurring tasks
+    │   ├── gmail.ts             # Gmail: check, read, send, search, summarize
+    │   ├── web-monitor.ts       # URL change detection, keyword tracking (HN/Reddit)
+    │   ├── vision.ts            # Claude image analysis, poster-to-listing
+    │   ├── form-filler.ts       # Personal data vault with fuzzy field matching
+    │   ├── task-manager.ts      # Background task CRUD (create/list/cancel/priority/pause)
+    │   ├── inventory.ts         # Image display, CSV/spreadsheet reading, inventory index+search
+    │   ├── pdf-forms.ts         # PDF form parsing and auto-filling from vault (pdf-lib)
+    │   ├── calendar.ts          # Calendar events, reminders, recurring event advancement
+    │   ├── social-media.ts      # Platform-optimized social post generation + hashtags
+    │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     └── tasks/
         ├── types.ts       # Task state types (pending/running/completed/failed)
-        └── runner.ts      # Background task execution + user notification + events
+        ├── runner.ts      # Background task execution + user notification + events
+        ├── worker.ts      # Autonomous task worker loop (30s polling, step-based execution)
+        ├── busy-state.ts  # Prevents concurrent agent loops
+        └── scheduler.ts   # Hourly scheduler: auto-backup, scheduled tasks, web monitors, calendar reminders
 ```
 
 ---
@@ -154,13 +183,13 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (21 total)
+### Available Tools (~60 total across 15 skill modules)
 
-**Core Tools:**
+**Core Tools (10):**
 | Tool | What It Does |
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
-| `read_file` | Read local files |
+| `read_file` | Read local files (with credential blocklist protection) |
 | `write_file` | Write files (creates directories automatically) |
 | `list_directory` | List contents of a directory |
 | `run_command` | Execute shell commands (with timeout) |
@@ -168,8 +197,9 @@ Both share conversation history via the owner's user ID.
 | `load_note` | Load a previously saved note |
 | `list_notes` | List all saved notes |
 | `update_user_profile` | Update user name, preferences, or notes |
+| `install_skill` | Hot-install a new skill from local/skills/ (no restart needed) |
 
-**Image Processing Skills** (requires `sharp`):
+**Image Processing (5)** — requires `sharp`:
 | Tool | What It Does |
 |------|-------------|
 | `batch_resize_images` | Resize images to target dimensions (e.g. 1600px for eBay) |
@@ -178,7 +208,7 @@ Both share conversation history via the owner's user ID.
 | `add_watermark` | Overlay text watermark on images |
 | `auto_crop` | Trim whitespace/borders from images |
 
-**eBay Listing Skills** (requires eBay API credentials):
+**eBay Listing (8)** — requires eBay API credentials:
 | Tool | What It Does |
 |------|-------------|
 | `create_ebay_listing` | Create a fixed-price listing via Inventory API |
@@ -186,12 +216,107 @@ Both share conversation history via the owner's user ID.
 | `search_ebay_category` | Find category IDs by keyword |
 | `generate_listing_content` | Prep image for AI-powered listing generation |
 | `get_ebay_listing_status` | Check listing status by SKU/ID |
+| `get_seller_listings` | List all active seller listings |
+| `update_ebay_listing` | Update an existing listing (price, title, etc.) |
+| `bulk_update_prices` | Batch price updates across multiple listings |
 
-**Batch Workflow:**
+**Batch Poster Workflow (4):**
 | Tool | What It Does |
 |------|-------------|
-| `batch_list_posters` | End-to-end: scan folder → resize → upload → list on eBay |
+| `batch_list_posters` | End-to-end: scan folder → vision analyze → create eBay listings |
 | `batch_list_status` | Check progress of a running batch job |
+| `review_batch_samples` | Review AI-generated listing samples before publishing |
+| `approve_batch` | Approve and publish reviewed batch listings |
+
+**Vision & Image Analysis (2):**
+| Tool | What It Does |
+|------|-------------|
+| `analyze_image` | AI-powered image description, text extraction, object identification |
+| `analyze_poster_for_listing` | Generate structured eBay listing content from a poster image |
+
+**Backup & Restore (3):**
+| Tool | What It Does |
+|------|-------------|
+| `backup_bob` | Back up Bob's memory, config, and code to external drive |
+| `restore_bob` | Restore from a backup |
+| `list_backups` | List available backup snapshots |
+
+**Scheduled Tasks (4):**
+| Tool | What It Does |
+|------|-------------|
+| `add_scheduled_task` | Create a recurring or one-shot scheduled task |
+| `remove_scheduled_task` | Delete a scheduled task |
+| `list_scheduled_tasks` | List all scheduled tasks |
+| `run_scheduled_task` | Manually trigger a scheduled task |
+
+**Gmail (5)** — requires GMAIL_* env vars:
+| Tool | What It Does |
+|------|-------------|
+| `check_email` | Check for new/unread emails |
+| `read_email` | Read a specific email by ID |
+| `send_email` | Send an email |
+| `search_email` | Search emails by query |
+| `get_email_summary` | Get a summary of recent emails |
+
+**Web Monitoring (5):**
+| Tool | What It Does |
+|------|-------------|
+| `watch_url` | Monitor a URL for content changes |
+| `watch_keywords` | Track keywords on HN, Reddit, or custom sources |
+| `list_watches` | List all active watches |
+| `remove_watch` | Stop watching a URL/keyword |
+| `check_watches_now` | Manually trigger all watch checks |
+
+**Form Filling & Personal Data Vault (6):**
+| Tool | What It Does |
+|------|-------------|
+| `save_personal_data` | Save personal info to the vault (name, address, SSN, etc.) |
+| `load_personal_data` | Load data from the vault |
+| `list_personal_data` | List all vault categories |
+| `delete_personal_data` | Remove data from the vault |
+| `fill_form_fields` | Auto-fill form fields using fuzzy matching against vault |
+| `suggest_form_mapping` | Preview how vault data maps to form fields |
+
+**Background Task Management (6):**
+| Tool | What It Does |
+|------|-------------|
+| `create_background_task` | Create an autonomous background task |
+| `list_background_tasks` | List all tasks and their status |
+| `get_task_details` | Get detailed info on a specific task |
+| `cancel_background_task` | Cancel a running/pending task |
+| `update_task_priority` | Change task priority |
+| `pause_resume_task` | Pause or resume a task |
+
+**Inventory & Data (6):**
+| Tool | What It Does |
+|------|-------------|
+| `show_image` | Display an image inline in chat (dashboard renders as thumbnail) |
+| `read_csv` | Parse and display CSV file contents |
+| `read_spreadsheet` | Read Excel/Numbers spreadsheets (exceljs) |
+| `index_inventory` | Build searchable index from CSV, spreadsheet, or image folder |
+| `search_inventory` | Fuzzy search the inventory index |
+| `get_inventory_stats` | Summary stats on indexed inventory |
+
+**PDF Forms (2)** — requires `pdf-lib`:
+| Tool | What It Does |
+|------|-------------|
+| `parse_pdf_form` | Extract all fillable field names, types, and current values |
+| `fill_pdf_form` | Auto-fill PDF from vault + explicit overrides, save filled copy |
+
+**Calendar & Events (5):**
+| Tool | What It Does |
+|------|-------------|
+| `add_event` | Create a calendar event (deadline, meeting, appointment) |
+| `list_events` | List upcoming events with filtering |
+| `update_event` | Modify an existing event |
+| `remove_event` | Delete an event |
+| `complete_event` | Mark done (recurring events advance to next occurrence) |
+
+**Social Media (2):**
+| Tool | What It Does |
+|------|-------------|
+| `generate_social_post` | Generate platform-optimized posts (LinkedIn, Facebook, Instagram, Twitter/X) |
+| `suggest_social_hashtags` | Generate relevant hashtags tailored to each platform |
 
 ### Event Bus (src/dashboard/events.ts)
 
@@ -218,9 +343,12 @@ Node built-in `http.createServer()`. No frameworks. Port 3000 (configurable).
 | GET | `/api/tasks` | All tasks for the owner |
 | GET | `/api/history` | Last 20 conversation entries |
 | GET | `/api/events` | SSE stream — real-time events |
+| GET | `/api/image` | Serve local images (auth via header or query param) |
 | POST | `/api/chat` | Send message to Bob, get response |
 | POST | `/api/bot/start` | Start Telegram polling |
 | POST | `/api/bot/stop` | Stop Telegram polling |
+
+All API endpoints require `BOB_API_TOKEN` authentication (header or query param).
 
 ### Memory System (src/agent/memory.ts)
 
@@ -269,6 +397,9 @@ pnpm test             # Run tests (vitest)
 ## Security
 
 - No open skill/plugin marketplace — all skills are vetted first-party code
+- **API token authentication** — all dashboard/API endpoints require `BOB_API_TOKEN`
+- **Telegram owner check** — only `OWNER_USER_ID` can interact with the bot
+- **Credential blocklist** — `read_file` blocks access to `.env`, `.ssh/`, `.gnupg/`, credentials files
 - Credentials stored in `.env` (gitignored, never committed)
 - User memory and profiles stored locally in `memory/` (gitignored)
 - Tool execution has timeouts and output size limits
@@ -288,7 +419,6 @@ pnpm test             # Run tests (vitest)
 ### Phase 3: Enhanced Capabilities
 - Playwright browser automation
 - MCP (Model Context Protocol) client for plug-and-play tool servers
-- BullMQ + Redis for persistent task queue
 - SQLite for task history and structured memory
 
 ### Phase 4: Voice
@@ -296,12 +426,9 @@ pnpm test             # Run tests (vitest)
 - Twilio for phone calls
 - Text-to-speech for responses
 
-### Phase 5: Broader Agent Capabilities
-- Email (Gmail API / SMTP)
-- Calendar management
-- Scheduled/cron tasks
-- Web monitoring (watch URLs, APIs, prices)
+### Phase 5: Smart Home & More
 - Smart home (Home Assistant)
+- Invoice generation
 
 ---
 
