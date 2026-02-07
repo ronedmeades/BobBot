@@ -207,6 +207,15 @@
     white-space: pre-wrap;
   }
 
+  .msg img {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 6px;
+    margin: 6px 0;
+    cursor: pointer;
+    display: block;
+  }
+
   .msg.user {
     align-self: flex-end;
     background: #1f6feb;
@@ -647,11 +656,55 @@
     } catch {}
   }
 
+  function renderMessageContent(text) {
+    // Parse image markers: ![alt](/api/image?path=...) and render as <img> tags
+    const imagePattern = /!\[([^\]]*)\]\((\/api\/image\?path=[^)]+)\)/g;
+    let result = '';
+    let lastIndex = 0;
+    let match;
+
+    while ((match = imagePattern.exec(text)) !== null) {
+      // Escape the text before this image
+      if (match.index > lastIndex) {
+        result += escapeHtml(text.slice(lastIndex, match.index));
+      }
+
+      const alt = escapeHtml(match[1]);
+      let src = match[2];
+      // Append auth token for the image request (img tags can't set headers)
+      if (apiToken) {
+        src += (src.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(apiToken);
+      }
+
+      result += '<img src="' + src + '" alt="' + alt + '" title="' + alt + '" '
+        + 'onclick="window.open(this.src,\'_blank\')" '
+        + 'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<em>(image not found)</em>\')" />';
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Remaining text after last image
+    if (lastIndex < text.length) {
+      result += escapeHtml(text.slice(lastIndex));
+    }
+
+    return result;
+  }
+
   function addChatBubble(role, text) {
     const container = document.getElementById('chat-messages');
     const div = document.createElement('div');
     div.className = `msg ${role}`;
-    div.textContent = text.length > 2000 ? text.slice(0, 2000) + '...' : text;
+
+    const displayText = text.length > 2000 ? text.slice(0, 2000) + '...' : text;
+
+    if (role === 'assistant') {
+      // Parse image markers in assistant messages
+      div.innerHTML = renderMessageContent(displayText);
+    } else {
+      div.textContent = displayText;
+    }
+
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
     return div;

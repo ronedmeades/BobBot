@@ -9,6 +9,7 @@ import { webMonitorToolDefinitions } from "../skills/web-monitor.js";
 import { visionToolDefinitions } from "../skills/vision.js";
 import { formFillerToolDefinitions } from "../skills/form-filler.js";
 import { taskManagerToolDefinitions } from "../skills/task-manager.js";
+import { inventoryToolDefinitions } from "../skills/inventory.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -211,6 +212,8 @@ const builtinTools: ToolDefinition[] = [
   ...formFillerToolDefinitions,
   // Background task management
   ...taskManagerToolDefinitions,
+  // Inventory, image display & data reading
+  ...inventoryToolDefinitions,
 ];
 
 /**

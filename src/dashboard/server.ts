@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { events, type BobEvent } from "./events.js";
@@ -273,6 +273,57 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     }
     stopBot();
     json(res, { status: "stopped" });
+    return;
+  }
+
+  // GET /api/image?path=... — serve a local image file for inline chat display
+  if (method === "GET" && url.startsWith("/api/image")) {
+    const reqUrl = new URL(url, `http://${req.headers.host ?? "localhost"}`);
+
+    // Auth: check header OR query param (img tags can't set headers)
+    if (API_TOKEN) {
+      const auth = req.headers.authorization;
+      const qToken = reqUrl.searchParams.get("token");
+      if ((!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== API_TOKEN) && qToken !== API_TOKEN) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Unauthorized" }));
+        return;
+      }
+    }
+
+    const imagePath = reqUrl.searchParams.get("path");
+    if (!imagePath) {
+      error(res, "Missing 'path' parameter");
+      return;
+    }
+
+    const resolved = resolve(imagePath);
+    const ext = extname(resolved).toLowerCase();
+    const ALLOWED_IMAGE_EXTS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp"]);
+    if (!ALLOWED_IMAGE_EXTS.has(ext)) {
+      error(res, "Not an allowed image type", 403);
+      return;
+    }
+
+    try {
+      const data = await readFile(resolved);
+      const mimeMap: Record<string, string> = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".bmp": "image/bmp",
+      };
+      res.writeHead(200, {
+        "Content-Type": mimeMap[ext] ?? "application/octet-stream",
+        "Cache-Control": "public, max-age=3600",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(data);
+    } catch {
+      error(res, "Image not found", 404);
+    }
     return;
   }
 

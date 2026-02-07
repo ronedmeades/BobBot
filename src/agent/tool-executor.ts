@@ -70,6 +70,14 @@ import {
   handleUpdateTaskPriority,
   handlePauseResumeTask,
 } from "../skills/task-manager.js";
+import {
+  handleShowImage,
+  handleReadCsv,
+  handleReadSpreadsheet,
+  handleIndexInventory,
+  handleSearchInventory,
+  handleGetInventoryStats,
+} from "../skills/inventory.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -215,6 +223,19 @@ export async function executeTool(
         return await handleUpdateTaskPriority(input);
       case "pause_resume_task":
         return await handlePauseResumeTask(input);
+      // Inventory, image display & data reading
+      case "show_image":
+        return await handleShowImage(input);
+      case "read_csv":
+        return await handleReadCsv(input);
+      case "read_spreadsheet":
+        return await handleReadSpreadsheet(input);
+      case "index_inventory":
+        return await handleIndexInventory(input);
+      case "search_inventory":
+        return await handleSearchInventory(input);
+      case "get_inventory_stats":
+        return await handleGetInventoryStats();
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);
