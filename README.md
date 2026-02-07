@@ -182,7 +182,7 @@ Bob will walk you through the whole process step by step.
 
 ## What Can Bob Do?
 
-Bob has **97 tools across 25 skill modules**. Here's what he can do out of the box:
+Bob has **100 tools across 26 skill modules**. Here's what he can do out of the box:
 
 **Basics:**
 - **Fetch web pages and APIs** — research topics, check prices, read documentation
@@ -213,14 +213,72 @@ Bob has **97 tools across 25 skill modules**. Here's what he can do out of the b
 - **List on eBay** — create listings, upload photos, bulk price updates (needs eBay API keys)
 - **Batch poster workflow** — scan a folder of posters, auto-generate eBay listings
 
+**Communication:**
+- **Phone calls** — Bob can call your phone and speak a message aloud (needs Twilio)
+- **SMS** — send text messages to your phone (needs Twilio)
+- **Send email** — via Gmail (needs Gmail API keys)
+
 **System:**
 - **File organizer** — scan folders, organize by type or date, find duplicates
 - **Browser automation** — navigate pages, click, type, screenshot (needs `playwright`)
-- **Send email** — via Gmail (needs Gmail API keys)
 - **Backups** — auto-backup to an external drive on a schedule
 - **Background tasks** — hand Bob a task and he works on it autonomously
 
 Bob is extensible — new skills can be added as modules. Ask Bob what he can do and he'll tell you.
+
+---
+
+## Phone Calls & SMS (Twilio)
+
+Want Bob to be able to call or text your real phone? You'll need a Twilio account.
+
+### Step 1: Create a Twilio account
+
+1. Go to [twilio.com](https://www.twilio.com/) and sign up (free trial gives you ~$15 credit)
+2. Verify your email and phone number
+
+### Step 2: Get a Twilio phone number
+
+1. In the Twilio Console, go to **Phone Numbers** → **Buy a number**
+2. Pick any number with Voice and SMS capabilities (~$1.15/month)
+3. Note down the phone number (e.g. `+15551234567`)
+
+### Step 3: Find your credentials
+
+1. From the Twilio Console dashboard, copy your **Account SID** (starts with `AC`)
+2. Copy your **Auth Token** (click "Show" to reveal it)
+
+### Step 4: Add to your .env file
+
+Open your `.env` file and add these lines:
+
+```
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token_here
+TWILIO_PHONE_NUMBER=+15551234567
+OWNER_PHONE_NUMBER=+15559876543
+```
+
+Replace `OWNER_PHONE_NUMBER` with your real phone number (the one you want Bob to call/text).
+
+### Step 5: Verify your number (free trial only)
+
+On the free trial, Twilio can only call/text **verified** numbers:
+
+1. In the Twilio Console, go to **Phone Numbers** → **Verified Caller IDs**
+2. Click **Add a new Caller ID** and verify your personal phone number
+
+This restriction is removed once you upgrade your Twilio account.
+
+### Step 6: Restart Bob and test
+
+```
+pnpm dev
+```
+
+Then in the dashboard, try:
+- *"Call me and say hello"*
+- *"Text me a quick test message"*
 
 ---
 
