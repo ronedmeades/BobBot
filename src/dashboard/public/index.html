@@ -545,6 +545,19 @@
       // Update task list from events
       if (event.type === 'task:update') {
         fetchTasks();
+        // Browser notification when a background task completes or fails
+        if (event.data.status === 'completed' || event.data.status === 'failed') {
+          const label = event.data.status === 'completed' ? 'Complete' : 'Failed';
+          const desc = event.data.description || 'Background task';
+          // Browser Notification API
+          if (Notification.permission === 'granted') {
+            new Notification('Bob - Task ' + label, { body: desc, icon: '/api/image?path=assets/bob-icon.ico' });
+          } else if (Notification.permission !== 'denied') {
+            Notification.requestPermission();
+          }
+          // Also inject a message into the chat so the user sees it
+          addChatBubble('assistant', 'Background task ' + label.toLowerCase() + ': "' + desc + '"\n\nCheck the task panel or ask me for details.');
+        }
       }
 
       // Capture user message as current task topic
@@ -927,6 +940,11 @@
   loadHistory();
   fetchTasks();
   connectSSE();
+
+  // Request browser notification permission for task alerts
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
 </script>
 
 </body>

@@ -4,6 +4,7 @@ import { runAgent } from "../agent/core.js";
 import { submitTask, setNotifier } from "../tasks/runner.js";
 import { setSchedulerNotifier } from "../tasks/scheduler.js";
 import { setWorkerNotifier } from "../tasks/worker.js";
+import { recordUserInteraction } from "../tasks/escalation.js";
 import { memory } from "../agent/memory.js";
 import { events } from "../dashboard/events.js";
 
@@ -88,6 +89,7 @@ export function createBot(): Bot {
   bot.on("message:text", async (ctx) => {
     const userId = String(ctx.from?.id ?? "unknown");
     const text = ctx.message.text;
+    recordUserInteraction(userId);
 
     // Save chatId to profile so scheduler/proactive messages can reach the user
     const profile = await memory.loadProfile(userId);

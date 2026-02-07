@@ -180,7 +180,8 @@ const builtinTools: ToolDefinition[] = [
         },
         preferences: {
           type: "object",
-          description: "Key-value pairs of user preferences to set or update",
+          description:
+            "Key-value pairs of user preferences to set or update. Known keys: 'notify_default' — comma-separated default notification channels for background tasks (e.g. 'telegram', 'telegram,sms'). Set to '' to clear.",
           additionalProperties: { type: "string" },
         },
         notes: {

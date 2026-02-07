@@ -11,6 +11,7 @@ import { getCurrentTaskId } from "../tasks/worker.js";
 import { getIsBusy, getActiveContext } from "../tasks/busy-state.js";
 import { memory } from "../agent/memory.js";
 import { startBot, stopBot, isBotRunning } from "../bot/telegram.js";
+import { recordUserInteraction } from "../tasks/escalation.js";
 
 const OWNER_USER_ID = config.owner.userId;
 const API_TOKEN = config.dashboard.apiToken;
@@ -236,6 +237,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
         return;
       }
 
+      recordUserInteraction(OWNER_USER_ID);
       const response = await runAgent(OWNER_USER_ID, message, "dashboard");
       json(res, { text: response.text, toolsUsed: response.toolsUsed });
     } catch (err) {

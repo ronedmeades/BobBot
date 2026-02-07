@@ -5,6 +5,7 @@
 
 import { createInterface } from "node:readline";
 import { writeFile, access } from "node:fs/promises";
+import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -180,13 +181,43 @@ async function main(): Promise<void> {
 
   await writeFile(envPath, envContent, "utf-8");
 
+  // Step 4: Desktop shortcut (Windows only)
+  if (process.platform === "win32") {
+    print("Step 4: Desktop shortcut");
+    print("");
+    print("  Create a desktop icon so you can launch Bob with one click.");
+    print("  You can also choose to start Bob automatically when Windows starts.");
+    print("");
+    const shortcut = await ask("Set up desktop shortcut now? (Y/n): ");
+    if (shortcut === "" || shortcut.toLowerCase() === "y") {
+      print("");
+      try {
+        execSync(
+          'powershell -ExecutionPolicy Bypass -File scripts/create-shortcut.ps1',
+          { stdio: "inherit", cwd: process.cwd() },
+        );
+      } catch {
+        print("  Shortcut setup had an issue — you can try again later with: pnpm shortcut");
+        print("");
+      }
+    } else {
+      print("  Skipped. You can set this up later with: pnpm shortcut");
+      print("");
+    }
+  }
+
   print("=================================");
   print("   Setup complete!");
   print("=================================");
   print("");
   print("To start Bob:");
   print("");
-  print("  pnpm dev");
+  if (process.platform === "win32") {
+    print("  Double-click the Bob icon on your desktop");
+    print("  Or run: pnpm dev");
+  } else {
+    print("  pnpm dev");
+  }
   print("");
   print("Then open http://localhost:3000 and say hello!");
   print("");

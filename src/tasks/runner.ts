@@ -26,6 +26,7 @@ export async function submitTask(userId: string, chatId: number, description: st
     description,
     priority: "normal",
     createdBy: "telegram",
+    notifyVia: ["telegram"],
   });
 
   events.emitEvent("task:update", { taskId: task.id, status: "pending", description });

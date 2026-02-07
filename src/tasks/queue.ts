@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
-import type { Task, TaskPriority, TaskQueueFile } from "./types.js";
+import type { Task, TaskPriority, TaskQueueFile, NotifyChannel } from "./types.js";
 
 const QUEUE_FILE = resolve("memory", "task-queue.json");
 
@@ -53,6 +53,8 @@ export interface CreateTaskOpts {
   maxSteps?: number;
   createdBy?: Task["createdBy"];
   tags?: string[];
+  notifyVia?: NotifyChannel[];
+  escalateAfterMin?: number;
 }
 
 export async function createTask(opts: CreateTaskOpts): Promise<Task> {
@@ -73,6 +75,8 @@ export async function createTask(opts: CreateTaskOpts): Promise<Task> {
     createdBy: opts.createdBy ?? "user",
     tags: opts.tags ?? [],
     retryCount: 0,
+    notifyVia: opts.notifyVia ?? [],
+    escalateAfterMin: opts.escalateAfterMin,
   };
 
   queue.push(task);

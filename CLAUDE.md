@@ -533,6 +533,15 @@ pnpm test             # Run tests (vitest)
 
 ---
 
+## Next Session
+
+- [x] Desktop & taskbar shortcut — click to launch Bob (or focus if already running)
+- [x] Notification system — per-task notify_via + user default preference
+- [ ] Test Twilio phone call & SMS (set up env vars, verify number, try "call me and say hello")
+- [ ] Escalation engine phase 2: Standing rules + eBay order monitoring (auto-nag unshipped orders)
+- [ ] Escalation engine phase 3: Proactive suggestions — Bob suggests setting up escalations when he first encounters a task type (e.g. "I see you listed on eBay — want me to remind you to ship?")
+- [ ] Bob-to-Bob communication — explore letting multiple Bob instances talk to each other (discuss design first)
+
 ## Notes
 
 - This is an experimental project

@@ -148,8 +148,23 @@ The wizard will:
 - Ask your name
 - Create the configuration file
 
-### Step 4: Start Bob
+### Step 4: Create a desktop shortcut (Windows)
 
+```
+pnpm shortcut
+```
+
+This creates a **Bob** icon on your desktop. Double-click it to start Bob and open the dashboard in your browser — one click, done.
+
+You'll also be asked if you want Bob to **start automatically** when you log in to Windows. If you say yes, your browser bookmark to `http://localhost:3000` will always work.
+
+> **Prefer the terminal?** You can skip the shortcut and just run `pnpm dev` instead.
+
+### Step 5: Start Bob
+
+**With the desktop shortcut:** Double-click the Bob icon.
+
+**From the terminal:**
 ```
 pnpm dev
 ```
@@ -162,9 +177,9 @@ Bob is online. Provider: gemini, Model: gemini-2.0-flash
 Chat with Bob at http://localhost:3000
 ```
 
-### Step 5: Say hello!
+### Step 6: Say hello!
 
-Open [http://localhost:3000](http://localhost:3000) in your browser. Type a message in the chat box and hit Send.
+Open [http://localhost:3000](http://localhost:3000) in your browser (or it opens automatically with the shortcut). Type a message in the chat box and hit Send.
 
 Try: *"Hey Bob, what can you do?"*
 

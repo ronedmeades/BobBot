@@ -11,6 +11,7 @@ import { executeTool, type ToolContext } from "./tool-executor.js";
 import { memory, type UserProfile } from "./memory.js";
 import { events } from "../dashboard/events.js";
 import { setIsBusy } from "../tasks/busy-state.js";
+import { getAvailableChannels } from "../tasks/escalation.js";
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
   const userName = profile?.name ?? "mate";
@@ -70,6 +71,15 @@ Background tasks:
 - Use get_task_details to see full findings for a specific task
 - Task results are saved as notes you can load with load_note
 - If the user says something like "work on this when you're free" or "do this in the background", that's definitely a background task
+
+Notifications & escalation:
+- The dashboard ALWAYS shows task completion — no setup needed
+- External notifications (telegram, sms, call) only fire when the user explicitly asks: "text me when done", "call me if I don't respond"
+- Currently available notification channels: ${getAvailableChannels().join(", ") || "none (dashboard only)"}
+- ONLY offer channels that are listed as available above — never suggest a channel that isn't configured
+- notify_via sets the escalation ORDER: first channel fires immediately, if user doesn't respond, next fires after escalate_after_minutes
+- User can set a default via update_user_profile preferences.notify_default (e.g. "telegram")
+- If user says "always text me when tasks finish", save that as their notify_default preference
 ${!config.telegram.botToken ? `
 Telegram setup:
 - The user is chatting via the web dashboard. Telegram is not set up yet.

@@ -1,5 +1,7 @@
 import type { ToolDefinition } from "../providers/types.js";
 import { config } from "../config.js";
+import { memory } from "../agent/memory.js";
+import { getAvailableChannels } from "../tasks/escalation.js";
 import {
   createTask,
   getTask,
@@ -9,7 +11,7 @@ import {
   resumeTask,
   updateTask,
 } from "../tasks/queue.js";
-import type { TaskPriority } from "../tasks/types.js";
+import type { TaskPriority, NotifyChannel } from "../tasks/types.js";
 
 export const taskManagerToolDefinitions: ToolDefinition[] = [
   {
@@ -38,6 +40,17 @@ export const taskManagerToolDefinitions: ToolDefinition[] = [
           type: "array",
           items: { type: "string" },
           description: "Optional tags for organization (e.g. ['vitalos', 'research'])",
+        },
+        notify_via: {
+          type: "array",
+          items: { type: "string", enum: ["telegram", "sms", "call"] },
+          description:
+            "Notification channels in ESCALATION ORDER. First channel fires immediately on completion. If user does not respond, subsequent channels fire after escalate_after_minutes. Only set if user EXPLICITLY asks (e.g. 'text me when done' = ['telegram'], 'text me, if I dont respond call me' = ['telegram', 'call']). Falls back to user's notify_default preference if not set. Dashboard always shows completion.",
+        },
+        escalate_after_minutes: {
+          type: "number",
+          description:
+            "Minutes to wait before escalating to the next notification channel (default: 10). E.g. if notify_via is ['telegram', 'call'] and this is 15, Bob texts first, waits 15 min, then calls if no response.",
         },
       },
       required: ["description"],
@@ -146,18 +159,45 @@ export async function handleCreateBackgroundTask(
     return { success: false, output: "description is required" };
   }
 
+  const ownerChatId = Number(config.owner.userId) || 0;
+  const userId = context?.userId ?? config.owner.userId;
+
+  // Resolve notification channels: explicit > user default > none
+  let notifyVia = (input.notify_via as NotifyChannel[]) ?? [];
+  if (notifyVia.length === 0) {
+    const profile = await memory.loadProfile(userId);
+    const defaultPref = profile?.preferences?.notify_default;
+    if (defaultPref) {
+      notifyVia = defaultPref.split(",").map((s) => s.trim()) as NotifyChannel[];
+    }
+  }
+
+  const escalateAfterMin = (input.escalate_after_minutes as number) ?? undefined;
+
   const task = await createTask({
-    userId: context?.userId ?? config.owner.userId,
+    userId,
+    chatId: ownerChatId,
     description,
     priority: (input.priority as TaskPriority) ?? "normal",
     maxSteps: (input.max_steps as number) ?? 10,
     createdBy: "agent",
     tags: (input.tags as string[]) ?? [],
+    notifyVia,
+    escalateAfterMin,
   });
+
+  const available = getAvailableChannels();
+  const escalationInfo = notifyVia.length > 0
+    ? `\nNotification: ${notifyVia.join(" -> ")} (escalate every ${escalateAfterMin ?? 10} min)`
+    : "\nNotification: dashboard only";
+  const unavailable = notifyVia.filter((ch) => !available.includes(ch));
+  const warning = unavailable.length > 0
+    ? `\n⚠ Channels not configured: ${unavailable.join(", ")}. Available: ${available.join(", ") || "dashboard only"}.`
+    : "";
 
   return {
     success: true,
-    output: `Background task created!\n\nID: ${task.id}\nDescription: ${task.description}\nPriority: ${task.priority}\nMax steps: ${task.maxSteps}\n\nI'll work on this autonomously when I'm not in a direct conversation. The task bar on the dashboard will show progress.`,
+    output: `Background task created!\n\nID: ${task.id}\nDescription: ${task.description}\nPriority: ${task.priority}\nMax steps: ${task.maxSteps}${escalationInfo}${warning}\n\nI'll work on this autonomously when I'm not in a direct conversation. The task bar on the dashboard will show progress.`,
   };
 }
 

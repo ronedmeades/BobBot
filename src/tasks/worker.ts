@@ -4,6 +4,12 @@ import { memory } from "../agent/memory.js";
 import { events } from "../dashboard/events.js";
 import { getIsBusy, setIsBusy } from "./busy-state.js";
 import { getNextTask, updateTask, cleanupOldTasks } from "./queue.js";
+import {
+  escalationTick,
+  createEscalation,
+  setEscalationNotifier,
+  cleanupOldChains,
+} from "./escalation.js";
 import type { Task, TaskStep } from "./types.js";
 
 type NotifyFn = (chatId: number, message: string) => Promise<void>;
@@ -19,6 +25,7 @@ const MAX_STEPS_PER_HOUR = Number(process.env.WORKER_MAX_STEPS_PER_HOUR) || 20;
 
 export function setWorkerNotifier(fn: NotifyFn): void {
   notifyUser = fn;
+  setEscalationNotifier(fn);
 }
 
 export function getCurrentTaskId(): string | null {
@@ -185,20 +192,32 @@ ${findings || response.text}
       detail: `Completed: ${task.description.slice(0, 50)}`,
     });
 
-    // Notify via Telegram if available
-    if (notifyUser && task.chatId) {
-      const summary = (findings || response.text).length > 4000
+    // Create escalation chain for external notifications (if channels were requested)
+    const channels = task.notifyVia ?? [];
+    if (channels.length > 0) {
+      const findingsText = (findings || response.text).length > 4000
         ? (findings || response.text).slice(0, 4000) + "\n\n...(truncated, full report saved to notes)"
         : (findings || response.text);
-      await notifyUser(
-        task.chatId,
-        `Background task complete: "${task.description}"\n\n${summary}`
-      ).catch((err) => console.error("[worker] Failed to notify:", err));
+
+      const escalateMin = task.escalateAfterMin ?? 10;
+      await createEscalation({
+        triggerType: "task_complete",
+        triggerRef: task.id,
+        description: task.description,
+        notifyChannels: channels,
+        escalateAfterMin: escalateMin,
+        userId: task.userId,
+        chatId: task.chatId,
+        context: { findings: findingsText },
+      });
     }
   }
 }
 
 async function workerTick(): Promise<void> {
+  // Always check escalations — they don't need the agent loop
+  await escalationTick().catch((err) => console.error("[worker] Escalation tick error:", err));
+
   if (getIsBusy()) return;
   if (stepsThisHour >= MAX_STEPS_PER_HOUR) {
     return; // Rate limit
@@ -239,11 +258,19 @@ async function workerTick(): Promise<void> {
         description: task.description,
       });
 
-      if (notifyUser && task.chatId) {
-        await notifyUser(
-          task.chatId,
-          `Background task failed: "${task.description}"\n\nError: ${message}`
-        ).catch(() => {});
+      // Escalation on failure too (if channels were requested)
+      const failChannels = task.notifyVia ?? [];
+      if (failChannels.length > 0) {
+        await createEscalation({
+          triggerType: "task_failed",
+          triggerRef: task.id,
+          description: task.description,
+          notifyChannels: failChannels,
+          escalateAfterMin: task.escalateAfterMin ?? 10,
+          userId: task.userId,
+          chatId: task.chatId,
+          context: { error: message },
+        }).catch((err) => console.error("[worker] Failed to create failure escalation:", err));
       }
     } else {
       await updateTask(task.id, { retryCount: newRetry });
@@ -273,9 +300,12 @@ export function startWorker(): void {
     stepsThisHour = 0;
   }, 60 * 60 * 1000);
 
-  // Clean up old tasks daily-ish (piggyback on worker start)
+  // Clean up old tasks + escalation chains on worker start
   cleanupOldTasks().then((removed) => {
     if (removed > 0) console.log(`[worker] Cleaned up ${removed} old tasks`);
+  }).catch(() => {});
+  cleanupOldChains().then((removed) => {
+    if (removed > 0) console.log(`[worker] Cleaned up ${removed} old escalation chains`);
   }).catch(() => {});
 }
 
