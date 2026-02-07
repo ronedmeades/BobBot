@@ -13,7 +13,24 @@ import { memory } from "../agent/memory.js";
 import { startBot, stopBot, isBotRunning } from "../bot/telegram.js";
 
 const OWNER_USER_ID = config.owner.userId;
+const API_TOKEN = config.dashboard.apiToken;
 const startTime = Date.now();
+
+/**
+ * Check Authorization: Bearer <token> header.
+ * Returns true if authorized, false if rejected (and response already sent).
+ */
+function checkAuth(req: IncomingMessage, res: ServerResponse): boolean {
+  if (!API_TOKEN) return true; // No token configured — allow (with console warning at startup)
+
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ") || auth.slice(7) !== API_TOKEN) {
+    res.writeHead(401, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Unauthorized — set your API token" }));
+    return false;
+  }
+  return true;
+}
 
 function json(res: ServerResponse, data: unknown, status = 200): void {
   res.writeHead(status, {
@@ -44,7 +61,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
     });
     res.end();
     return;
@@ -75,6 +92,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       error(res, "Dashboard HTML not found", 500);
     }
     return;
+  }
+
+  // Auth check for all /api/* routes (except SSE which handles its own auth via query param)
+  if (url.startsWith("/api/") && !url.startsWith("/api/events")) {
+    if (!checkAuth(req, res)) return;
   }
 
   // GET /api/status
@@ -160,8 +182,19 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  // GET /api/events — SSE stream
-  if (method === "GET" && url === "/api/events") {
+  // GET /api/events — SSE stream (auth via query param since EventSource can't set headers)
+  const eventsMatch = url.startsWith("/api/events");
+  if (method === "GET" && eventsMatch) {
+    // Check token from query param: /api/events?token=xxx
+    if (API_TOKEN) {
+      const reqUrl = new URL(url, `http://${req.headers.host ?? "localhost"}`);
+      const qToken = reqUrl.searchParams.get("token");
+      if (qToken !== API_TOKEN) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Unauthorized" }));
+        return;
+      }
+    }
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",

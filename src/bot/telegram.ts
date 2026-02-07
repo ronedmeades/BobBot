@@ -10,6 +10,11 @@ import { events } from "../dashboard/events.js";
 let bot: Bot | null = null;
 let running = false;
 
+function isOwner(fromId: number | undefined): boolean {
+  if (!fromId) return false;
+  return String(fromId) === config.owner.userId;
+}
+
 export function createBot(): Bot {
   bot = new Bot(config.telegram.botToken);
 
@@ -24,6 +29,15 @@ export function createBot(): Bot {
   setNotifier(sendMessage);
   setSchedulerNotifier(sendMessage);
   setWorkerNotifier(sendMessage);
+
+  // Owner check — ignore messages from non-owners
+  bot.use(async (ctx, next) => {
+    if (!isOwner(ctx.from?.id)) {
+      console.log(`[security] Ignoring message from non-owner: ${ctx.from?.id}`);
+      return; // Silently ignore
+    }
+    await next();
+  });
 
   // /start command
   bot.command("start", async (ctx) => {

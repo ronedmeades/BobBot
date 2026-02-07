@@ -438,10 +438,39 @@
 <script>
   let botRunning = false;
 
+  // --- Auth ---
+  let apiToken = localStorage.getItem('bob_api_token') || '';
+
+  function getAuthHeaders() {
+    const headers = {};
+    if (apiToken) headers['Authorization'] = `Bearer ${apiToken}`;
+    return headers;
+  }
+
+  function promptForToken() {
+    const token = prompt('Enter your Bob API token (BOB_API_TOKEN from .env):');
+    if (token) {
+      apiToken = token.trim();
+      localStorage.setItem('bob_api_token', apiToken);
+      // Reload to re-init everything with the token
+      location.reload();
+    }
+  }
+
+  async function authFetch(url, options = {}) {
+    const headers = { ...getAuthHeaders(), ...(options.headers || {}) };
+    const r = await fetch(url, { ...options, headers });
+    if (r.status === 401) {
+      promptForToken();
+      throw new Error('Unauthorized');
+    }
+    return r;
+  }
+
   // --- Status ---
   async function fetchStatus() {
     try {
-      const r = await fetch('/api/status');
+      const r = await authFetch('/api/status');
       const s = await r.json();
       document.getElementById('status-meta').textContent =
         `${s.model} · uptime ${formatUptime(s.uptime)}`;
@@ -480,7 +509,7 @@
   async function toggleBot() {
     const endpoint = botRunning ? '/api/bot/stop' : '/api/bot/start';
     try {
-      await fetch(endpoint, { method: 'POST' });
+      await authFetch(endpoint, { method: 'POST' });
       botRunning = !botRunning;
       updateBotUI();
     } catch (e) {
@@ -490,7 +519,8 @@
 
   // --- Activity Feed (SSE) ---
   function connectSSE() {
-    const es = new EventSource('/api/events');
+    const sseUrl = apiToken ? `/api/events?token=${encodeURIComponent(apiToken)}` : '/api/events';
+    const es = new EventSource(sseUrl);
     const feed = document.getElementById('activity-feed');
 
     es.onmessage = (e) => {
@@ -607,7 +637,7 @@
   // --- Chat ---
   async function loadHistory() {
     try {
-      const r = await fetch('/api/history');
+      const r = await authFetch('/api/history');
       const history = await r.json();
       const container = document.getElementById('chat-messages');
       container.innerHTML = '';
@@ -642,7 +672,7 @@
     input.disabled = true;
 
     try {
-      const r = await fetch('/api/chat', {
+      const r = await authFetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
@@ -711,7 +741,7 @@
 
   async function fetchTasks() {
     try {
-      const r = await fetch('/api/tasks');
+      const r = await authFetch('/api/tasks');
       lastTasks = await r.json();
       renderTaskBar();
     } catch {}

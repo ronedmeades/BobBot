@@ -22,6 +22,9 @@ export const config = {
     name: process.env.OWNER_NAME ?? "Owner",
     notes: process.env.OWNER_NOTES ?? "",
   },
+  dashboard: {
+    apiToken: process.env.BOB_API_TOKEN ?? "",
+  },
   agent: {
     name: "Bob",
     maxToolRounds: 20,
@@ -42,5 +45,9 @@ export function validateConfig(): void {
   if (!config.telegram.botToken) {
     console.log("No TELEGRAM_BOT_TOKEN set — Telegram disabled. Chat via the dashboard instead.");
     console.log("Ask Bob to help you set up Telegram when you're ready.\n");
+  }
+  if (!config.dashboard.apiToken) {
+    console.log("WARNING: No BOB_API_TOKEN set — dashboard API is unauthenticated!");
+    console.log("Set BOB_API_TOKEN in .env to secure the dashboard.\n");
   }
 }

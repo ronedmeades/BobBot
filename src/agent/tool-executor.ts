@@ -234,8 +234,28 @@ async function handleFetchUrl(input: Record<string, unknown>): Promise<ToolResul
   };
 }
 
+// Credential files that should never be read (defense against prompt injection exfiltration)
+const BLOCKED_PATHS = [
+  /[/\\]\.env$/i,
+  /[/\\]\.env\..+$/i,
+  /[/\\]\.ssh[/\\]/i,
+  /[/\\]\.gnupg[/\\]/i,
+  /[/\\]credentials\.json$/i,
+  /[/\\]\.netrc$/i,
+  /[/\\]\.npmrc$/i,
+  /[/\\]\.pypirc$/i,
+];
+
+function isBlockedPath(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return BLOCKED_PATHS.some((pattern) => pattern.test(normalized));
+}
+
 async function handleReadFile(input: Record<string, unknown>): Promise<ToolResult> {
   const path = resolve(input.path as string);
+  if (isBlockedPath(path)) {
+    return { success: false, output: "Access denied — this file contains credentials and cannot be read." };
+  }
   const content = await readFile(path, "utf-8");
   return { success: true, output: content };
 }
