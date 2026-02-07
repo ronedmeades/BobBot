@@ -150,6 +150,11 @@ import {
   handleTakeScreenshot,
   handleCloseBrowser,
 } from "../skills/browser.js";
+import {
+  handleCallOwner,
+  handleSendSms,
+  handleGetCallStatus,
+} from "../skills/phone.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -413,6 +418,13 @@ export async function executeTool(
         return await handleTakeScreenshot(input);
       case "close_browser":
         return await handleCloseBrowser();
+      // Phone calls & SMS (Twilio)
+      case "call_owner":
+        return await handleCallOwner(input);
+      case "send_sms":
+        return await handleSendSms(input);
+      case "get_call_status":
+        return await handleGetCallStatus(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

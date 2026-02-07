@@ -23,6 +23,7 @@ import { summarizerToolDefinitions } from "../skills/summarizer.js";
 import { fileOrganizerToolDefinitions } from "../skills/file-organizer.js";
 import { quickCaptureToolDefinitions } from "../skills/quick-capture.js";
 import { browserToolDefinitions } from "../skills/browser.js";
+import { phoneToolDefinitions } from "../skills/phone.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -253,6 +254,8 @@ const builtinTools: ToolDefinition[] = [
   ...quickCaptureToolDefinitions,
   // Browser automation (Playwright)
   ...browserToolDefinitions,
+  // Phone calls & SMS (Twilio)
+  ...phoneToolDefinitions,
 ];
 
 /**
