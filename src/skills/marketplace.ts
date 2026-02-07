@@ -244,12 +244,12 @@ export async function handleMarketplaceListPlatforms(): Promise<ToolResult> {
   }
 
   const lines = platforms.map((p) => {
-    const status = p.configured ? "configured" : "not configured";
+    const status = p.configured ? "READY" : "NOT CONFIGURED";
     const envHint = !p.configured && p.requiredEnvVars.length > 0
-      ? ` (needs: ${p.requiredEnvVars.join(", ")})`
+      ? `\n  Needs: ${p.requiredEnvVars.join(", ")}`
       : "";
-    const notes = p.notes ? ` -- ${p.notes}` : "";
-    return `- ${p.displayName} (${p.platform}): ${status}${envHint}${notes}`;
+    const notes = p.notes ? `\n  Note: ${p.notes}` : "";
+    return `[${status}] ${p.displayName} (${p.platform})${envHint}${notes}`;
   });
 
   const configured = platforms.filter((p) => p.configured);
