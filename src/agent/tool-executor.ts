@@ -57,7 +57,8 @@ import {
   handleFillFormFields,
   handleSuggestFormMapping,
 } from "../skills/form-filler.js";
-import { executeLocalTool } from "../skills/local-loader.js";
+import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
+import { refreshTools } from "./tools.js";
 
 interface ToolResult {
   success: boolean;
@@ -93,6 +94,8 @@ export async function executeTool(
         return await handleListNotes();
       case "update_user_profile":
         return await handleUpdateUserProfile(input, context);
+      case "install_skill":
+        return await handleInstallSkill(input);
       // Image processing skills
       case "batch_resize_images":
         return await handleBatchResize(input);
@@ -317,4 +320,25 @@ async function handleUpdateUserProfile(
   await memory.saveProfile(profile);
 
   return { success: true, output: `Profile updated for ${profile.name}` };
+}
+
+async function handleInstallSkill(input: Record<string, unknown>): Promise<ToolResult> {
+  const skillName = input.skill_name as string;
+  if (!skillName) {
+    return { success: false, output: "skill_name is required" };
+  }
+
+  const result = await installLocalSkill(skillName);
+
+  if (!result.success) {
+    return { success: false, output: `Failed to install skill "${skillName}": ${result.error}` };
+  }
+
+  // Rebuild the global tool definitions so the next API call sees the new tools
+  refreshTools();
+
+  return {
+    success: true,
+    output: `Skill "${skillName}" installed successfully. New tools available: ${result.toolNames.join(", ")}`,
+  };
 }

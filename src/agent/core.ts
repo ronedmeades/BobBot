@@ -45,6 +45,20 @@ ${notesList}
 
 Available tools let you: fetch URLs, read/write files, list directories, run shell commands, and manage your memory.
 Use them freely to accomplish tasks.
+
+Self-extending skills:
+- If you can't accomplish a task with your current tools, tell the user and offer to create a new skill for it
+- To add a skill:
+  1. First read an existing skill for reference (e.g. use read_file on src/skills/backup.ts)
+  2. Write a TypeScript file to local/skills/<name>.ts using write_file
+  3. The file must export two things:
+     - toolDefinitions: an array of tool definitions with name, description, and input_schema
+     - toolHandlers: an object mapping tool names to async handler functions
+  4. Each handler signature: async (input: Record<string, unknown>) => Promise<{ success: boolean, output: string }>
+  5. Call install_skill with the skill name to hot-load it (no restart needed)
+  6. Then use your new tools immediately in the same conversation
+- Skills persist across restarts — they load automatically from local/skills/ on startup
+- If install_skill reports an error, read the error message, fix the file with write_file, and try install_skill again
 ${!config.telegram.botToken ? `
 Telegram setup:
 - The user is chatting via the web dashboard. Telegram is not set up yet.

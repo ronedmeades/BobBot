@@ -175,6 +175,21 @@ const builtinTools: ToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: "install_skill",
+    description:
+      "Hot-install a new skill that you've written to local/skills/. Use this after creating a skill file with write_file. The new tools become available immediately — no restart needed. If the skill fails to load, you'll get the error message so you can fix the file and try again.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        skill_name: {
+          type: "string",
+          description: "Name of the skill file (without the .ts extension). E.g. 'weather' for local/skills/weather.ts",
+        },
+      },
+      required: ["skill_name"],
+    },
+  },
   // Image processing skills
   ...imageToolDefinitions,
   // eBay listing skills
@@ -207,6 +222,14 @@ export let toolDefinitions: ToolDefinition[] = [...builtinTools];
  */
 export async function initTools(): Promise<void> {
   await loadLocalSkills();
+  refreshTools();
+}
+
+/**
+ * Rebuild the toolDefinitions array from builtins + local skills.
+ * Called at startup and after hot-installing a new skill.
+ */
+export function refreshTools(): void {
   const localTools = getLocalToolDefinitions();
   toolDefinitions = [...builtinTools, ...localTools];
   if (localTools.length > 0) {
