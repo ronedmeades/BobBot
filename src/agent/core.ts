@@ -158,6 +158,55 @@ export async function runAgent(
   }
 }
 
+/**
+ * Detect when the LLM claims to have taken an action without using the tool.
+ * Returns the first match found, or null if the response is clean.
+ */
+function detectUnusedActions(
+  text: string,
+  usedTools: string[]
+): { claim: string; tool: string } | null {
+  const lower = text.toLowerCase();
+  const checks: Array<{ patterns: string[]; tool: string; claim: string }> = [
+    {
+      patterns: ["calling you", "dialing", "call initiated", "calling now", "ringing now", "placed a call", "making the call"],
+      tool: "call_owner",
+      claim: "making a phone call",
+    },
+    {
+      patterns: ["sms sent", "texting you", "text sent", "sent you a text", "sending a text"],
+      tool: "send_sms",
+      claim: "sending an SMS",
+    },
+    {
+      patterns: ["added to your calendar", "event created", "added the event", "scheduled the event", "added to calendar"],
+      tool: "add_event",
+      claim: "adding a calendar event",
+    },
+    {
+      patterns: ["reminder set", "i'll remind you", "reminder created", "set a reminder", "reminder is set"],
+      tool: "set_reminder",
+      claim: "setting a reminder",
+    },
+    {
+      patterns: ["email sent", "sent the email", "sending the email", "emailed"],
+      tool: "send_email",
+      claim: "sending an email",
+    },
+  ];
+
+  for (const check of checks) {
+    if (usedTools.includes(check.tool)) continue; // Tool was actually used, all good
+    for (const pattern of check.patterns) {
+      if (lower.includes(pattern)) {
+        return { claim: check.claim, tool: check.tool };
+      }
+    }
+  }
+
+  return null;
+}
+
 async function runAgentInner(
   userId: string,
   userMessage: string,
@@ -249,9 +298,22 @@ async function runAgentInner(
       (b): b is Extract<ResponseBlock, { type: "tool_use" }> => b.type === "tool_use"
     );
 
-    // If no tool calls, we're done
+    // If no tool calls, check for hallucinated actions before finishing
     if (response.stopReason === "end_turn" || toolUseBlocks.length === 0) {
       const finalText = textBlocks.join("\n") || "(No response)";
+
+      // Guard: detect when Bob claims to have done something without using the tool
+      const missed = detectUnusedActions(finalText, toolsUsed);
+      if (missed && rounds < config.agent.maxToolRounds) {
+        console.log(`[agent] Hallucination guard: Bob claimed "${missed.claim}" without using ${missed.tool}`);
+        messages.push({ role: "assistant", content: response.content as ContentBlock[] });
+        messages.push({
+          role: "user",
+          content: `You said "${missed.claim}" but you did NOT actually use the ${missed.tool} tool. ` +
+            `Describing an action does NOT make it happen. You MUST call the ${missed.tool} tool now to actually do it.`,
+        });
+        continue; // Re-enter the agent loop
+      }
 
       await memory.appendHistory(userId, {
         role: "assistant",
