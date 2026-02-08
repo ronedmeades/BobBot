@@ -197,7 +197,7 @@ Bob will walk you through the whole process step by step.
 
 ## What Can Bob Do?
 
-Bob has **118 tools across 28 skill modules**. Here's what he can do out of the box:
+Bob has **~137 tools across 30 skill modules**. Here's what he can do out of the box:
 
 **Basics:**
 - **Fetch web pages and APIs** — research topics, check prices, read documentation
@@ -225,7 +225,7 @@ Bob has **118 tools across 28 skill modules**. Here's what he can do out of the 
 
 **Marketplace & eBay:**
 - **Marketplace engine** — unified orders, messaging, and fulfillment across platforms
-- **eBay, Etsy, Poshmark** — built-in adapters (more can be added as local skills)
+- **eBay, Etsy, Poshmark, Depop** — built-in adapters (more can be added as local skills)
 - **Get orders** — view orders from any marketplace, filter by status
 - **Ship orders** — mark as shipped with tracking (single or bulk)
 - **Buyer messaging** — send/receive messages through marketplace platforms
@@ -233,6 +233,8 @@ Bob has **118 tools across 28 skill modules**. Here's what he can do out of the 
 - **Analyze images** — describe photos, extract text, generate listings from poster photos
 - **List on eBay** — create listings, upload photos, bulk price updates (needs eBay API keys)
 - **Batch poster workflow** — scan a folder of posters, auto-generate eBay listings
+- **Standing rules** — persistent monitoring (alert on unshipped orders, new orders, unread messages, daily sales summary, weekly insights digest)
+- **Escalation engine** — multi-channel notification chains (Telegram → SMS → phone call) with auto-acknowledge
 
 **Communication:**
 - **Phone calls** — Bob can call your phone and speak a message aloud (needs Twilio)
@@ -245,6 +247,7 @@ Bob has **118 tools across 28 skill modules**. Here's what he can do out of the 
 - **Browser automation** — navigate pages, click, type, screenshot (needs `playwright`)
 - **Backups** — auto-backup to an external drive on a schedule
 - **Background tasks** — hand Bob a task and he works on it autonomously
+- **Environment manager** — safely set API keys and config vars through chat (allowlisted keys only)
 
 Bob is extensible — new skills can be added as modules. Ask Bob what he can do and he'll tell you.
 

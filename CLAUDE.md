@@ -176,13 +176,15 @@ bob/
     │   └── adapters/
     │       ├── ebay.ts    # eBay: Fulfillment API (orders) + Trading API (messages)
     │       ├── etsy.ts    # Etsy: Receipts API (orders), v3 REST
-    │       └── poshmark.ts # Poshmark: stub (no public API)
+    │       ├── poshmark.ts # Poshmark: stub (no public API)
+    │       └── depop.ts   # Depop: stub (no public API)
     └── tasks/
         ├── types.ts       # Task state types (pending/running/completed/failed)
         ├── runner.ts      # Background task execution + user notification + events
         ├── worker.ts      # Autonomous task worker loop (30s polling, step-based execution)
         ├── busy-state.ts  # Prevents concurrent agent loops
-        └── scheduler.ts   # Hourly scheduler: auto-backup, scheduled tasks, web monitors, calendar + quick reminders
+        ├── escalation.ts  # Multi-channel notification chains (Telegram → SMS → call) with auto-acknowledge
+        └── scheduler.ts   # Hourly scheduler: auto-backup, scheduled tasks, web monitors, calendar reminders, standing rules
 ```
 
 ---
@@ -213,7 +215,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~120 total across 29 skill modules, 4 marketplace platforms)
+### Available Tools (~137 total across 30 skill modules, 4 marketplace platforms)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -590,9 +592,10 @@ pnpm test             # Run tests (vitest)
 - [x] Notification system — per-task notify_via + user default preference
 - [x] Marketplace engine — cross-platform adapter pattern (eBay, Etsy, Poshmark, Depop + local adapters)
 - [ ] Test Twilio phone call & SMS (set up env vars, verify number, try "call me and say hello")
-- [ ] Escalation engine phase 2: Standing rules + eBay order monitoring (auto-nag unshipped orders)
-- [ ] Escalation engine phase 3: Proactive suggestions — Bob suggests setting up escalations when he first encounters a task type (e.g. "I see you listed on eBay — want me to remind you to ship?")
+- [x] Escalation engine phase 2: Standing rules + marketplace monitoring (unshipped orders, new orders, messages, daily summary)
+- [x] Escalation engine phase 3: Proactive insights — trigger history tracking, 5 insight detectors, weekly insights digest
 - [ ] Bob-to-Bob communication — explore letting multiple Bob instances talk to each other (discuss design first)
+- [ ] MCP (Model Context Protocol) client — plug-and-play tool servers
 
 ## Notes
 
