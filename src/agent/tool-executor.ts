@@ -181,6 +181,12 @@ import {
   handleSetEnvVar,
   handleListEnvKeys,
 } from "../skills/env-manager.js";
+import {
+  handleCreateStandingRule,
+  handleListStandingRules,
+  handleUpdateStandingRule,
+  handleRemoveStandingRule,
+} from "../skills/standing-rules.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -482,6 +488,15 @@ export async function executeTool(
         return await handleSetEnvVar(input);
       case "list_env_keys":
         return await handleListEnvKeys(input);
+      // Standing rules (marketplace monitoring)
+      case "create_standing_rule":
+        return await handleCreateStandingRule(input);
+      case "list_standing_rules":
+        return await handleListStandingRules();
+      case "update_standing_rule":
+        return await handleUpdateStandingRule(input);
+      case "remove_standing_rule":
+        return await handleRemoveStandingRule(input);
       // Google Calendar
       case "list_google_calendars":
         return await handleListGoogleCalendars();

@@ -7,6 +7,7 @@ import { checkScheduledTasks, initScheduledTasks } from "../skills/scheduler.js"
 import { checkAllWatches } from "../skills/web-monitor.js";
 import { checkCalendarReminders } from "../skills/calendar.js";
 import { checkReminders } from "../skills/reminders.js";
+import { checkStandingRules } from "../skills/standing-rules.js";
 import { getIsBusy } from "./busy-state.js";
 
 /**
@@ -198,6 +199,18 @@ async function runAllChecks(): Promise<void> {
     }
   } catch (err) {
     console.error("[scheduler] Reminders error:", err);
+  }
+
+  // Check standing rules (marketplace monitoring)
+  try {
+    const alerts = await checkStandingRules();
+    if (alerts.length > 0) {
+      await sendOwnerMessage(
+        `Marketplace alerts:\n\n${alerts.join("\n\n")}`
+      );
+    }
+  } catch (err) {
+    console.error("[scheduler] Standing rules error:", err);
   }
 }
 

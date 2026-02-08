@@ -167,6 +167,7 @@ bob/
     │   ├── phone.ts             # Twilio phone calls & SMS (owner-only, no new deps)
     │   ├── google-calendar.ts   # Google Calendar API (OAuth2, same client as Gmail)
     │   ├── env-manager.ts       # Safely set/list .env vars (allowlisted keys only)
+    │   ├── standing-rules.ts    # Persistent marketplace monitoring rules (hourly scheduler)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     ├── marketplace/
@@ -462,6 +463,14 @@ Both share conversation history via the owner's user ID.
 |------|-------------|
 | `set_env_var` | Safely add/update a single env var in .env (allowlisted keys only) |
 | `list_env_keys` | Show which env vars are set vs missing (never reveals values) |
+
+**Standing Rules — Marketplace Monitoring (4):**
+| Tool | What It Does |
+|------|-------------|
+| `create_standing_rule` | Create a persistent monitoring rule (unshipped orders, new orders, messages, daily summary) |
+| `list_standing_rules` | List all rules with status, last triggered, trigger count |
+| `update_standing_rule` | Modify params, enable/disable, change notification channels |
+| `remove_standing_rule` | Delete a monitoring rule |
 
 ### Event Bus (src/dashboard/events.ts)
 

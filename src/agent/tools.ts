@@ -27,6 +27,7 @@ import { phoneToolDefinitions } from "../skills/phone.js";
 import { marketplaceToolDefinitions } from "../skills/marketplace.js";
 import { googleCalendarToolDefinitions } from "../skills/google-calendar.js";
 import { envManagerToolDefinitions } from "../skills/env-manager.js";
+import { standingRulesToolDefinitions } from "../skills/standing-rules.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -266,6 +267,8 @@ const builtinTools: ToolDefinition[] = [
   ...googleCalendarToolDefinitions,
   // Environment variable management
   ...envManagerToolDefinitions,
+  // Standing rules (marketplace monitoring)
+  ...standingRulesToolDefinitions,
 ];
 
 /**
