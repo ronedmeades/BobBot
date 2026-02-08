@@ -177,6 +177,10 @@ import {
   handleUpdateGoogleEvent,
   handleDeleteGoogleEvent,
 } from "../skills/google-calendar.js";
+import {
+  handleSetEnvVar,
+  handleListEnvKeys,
+} from "../skills/env-manager.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -473,6 +477,11 @@ export async function executeTool(
         return await handleMarketplaceGetUnshipped(input);
       case "marketplace_bulk_ship":
         return await handleMarketplaceBulkShip(input);
+      // Environment variable management
+      case "set_env_var":
+        return await handleSetEnvVar(input);
+      case "list_env_keys":
+        return await handleListEnvKeys(input);
       // Google Calendar
       case "list_google_calendars":
         return await handleListGoogleCalendars();

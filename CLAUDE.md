@@ -166,6 +166,7 @@ bob/
     │   ├── browser.ts           # Playwright browser automation (Chromium, lazy-launched)
     │   ├── phone.ts             # Twilio phone calls & SMS (owner-only, no new deps)
     │   ├── google-calendar.ts   # Google Calendar API (OAuth2, same client as Gmail)
+    │   ├── env-manager.ts       # Safely set/list .env vars (allowlisted keys only)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     ├── marketplace/
@@ -211,7 +212,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~118 total across 28 skill modules, 4 marketplace platforms)
+### Available Tools (~120 total across 29 skill modules, 4 marketplace platforms)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -455,6 +456,12 @@ Both share conversation history via the owner's user ID.
 | `marketplace_order_summary` | Dashboard: order counts by platform and status |
 | `marketplace_get_unshipped` | Quick view of all orders awaiting shipment |
 | `marketplace_bulk_ship` | Mark multiple orders as shipped at once |
+
+**Environment Management (2):**
+| Tool | What It Does |
+|------|-------------|
+| `set_env_var` | Safely add/update a single env var in .env (allowlisted keys only) |
+| `list_env_keys` | Show which env vars are set vs missing (never reveals values) |
 
 ### Event Bus (src/dashboard/events.ts)
 
