@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { config as appConfig } from "../config.js";
 
 // Google Calendar API integration.
 // Can reuse the same Google OAuth2 client as Gmail, or use separate credentials.
@@ -581,7 +582,7 @@ export async function handleCreateGoogleEvent(
     }
 
     const isAllDay = /^\d{4}-\d{2}-\d{2}$/.test(startStr);
-    const timeZone = (input.time_zone as string) || undefined;
+    const timeZone = (input.time_zone as string) || appConfig.owner.timezone;
 
     // Build start/end
     const startObj: GoogleEventDateTime = {};
@@ -599,17 +600,17 @@ export async function handleCreateGoogleEvent(
       }
     } else {
       startObj.dateTime = startStr;
-      if (timeZone) startObj.timeZone = timeZone;
+      startObj.timeZone = timeZone;
 
       if (input.end) {
         endObj.dateTime = input.end as string;
-        if (timeZone) endObj.timeZone = timeZone;
+        endObj.timeZone = timeZone;
       } else {
         // Default: 1 hour after start
         const d = new Date(startStr);
         d.setHours(d.getHours() + 1);
         endObj.dateTime = d.toISOString();
-        if (timeZone) endObj.timeZone = timeZone;
+        endObj.timeZone = timeZone;
       }
     }
 
@@ -687,7 +688,7 @@ export async function handleUpdateGoogleEvent(
       updates.push("location");
     }
 
-    const timeZone = (input.time_zone as string) || undefined;
+    const timeZone = (input.time_zone as string) || appConfig.owner.timezone;
 
     if (input.start !== undefined) {
       const startStr = input.start as string;
@@ -695,9 +696,7 @@ export async function handleUpdateGoogleEvent(
       if (isAllDay) {
         patch.start = { date: startStr };
       } else {
-        const startObj: GoogleEventDateTime = { dateTime: startStr };
-        if (timeZone) startObj.timeZone = timeZone;
-        patch.start = startObj;
+        patch.start = { dateTime: startStr, timeZone } as GoogleEventDateTime;
       }
       updates.push("start");
     }
@@ -707,9 +706,7 @@ export async function handleUpdateGoogleEvent(
       if (isAllDay) {
         patch.end = { date: endStr };
       } else {
-        const endObj: GoogleEventDateTime = { dateTime: endStr };
-        if (timeZone) endObj.timeZone = timeZone;
-        patch.end = endObj;
+        patch.end = { dateTime: endStr, timeZone } as GoogleEventDateTime;
       }
       updates.push("end");
     }

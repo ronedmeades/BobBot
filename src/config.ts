@@ -21,6 +21,7 @@ export const config = {
     userId: process.env.OWNER_USER_ID || "owner",
     name: process.env.OWNER_NAME ?? "Owner",
     notes: process.env.OWNER_NOTES ?? "",
+    timezone: process.env.OWNER_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
   },
   dashboard: {
     apiToken: process.env.BOB_API_TOKEN ?? "",
