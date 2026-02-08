@@ -467,7 +467,7 @@ Both share conversation history via the owner's user ID.
 **Standing Rules — Marketplace Monitoring (4):**
 | Tool | What It Does |
 |------|-------------|
-| `create_standing_rule` | Create a persistent monitoring rule (unshipped orders, new orders, messages, daily summary) |
+| `create_standing_rule` | Create a persistent monitoring rule (unshipped orders, new orders, messages, daily summary, weekly insights) |
 | `list_standing_rules` | List all rules with status, last triggered, trigger count |
 | `update_standing_rule` | Modify params, enable/disable, change notification channels |
 | `remove_standing_rule` | Delete a monitoring rule |
