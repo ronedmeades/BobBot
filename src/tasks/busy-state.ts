@@ -5,6 +5,7 @@
 
 let busy = false;
 let activeContext: "chat" | "worker" | null = null;
+let preemptRequested = false;
 
 export function getIsBusy(): boolean {
   return busy;
@@ -17,4 +18,19 @@ export function setIsBusy(b: boolean, context?: "chat" | "worker"): void {
 
 export function getActiveContext(): "chat" | "worker" | null {
   return activeContext;
+}
+
+/** Signal the worker to yield at the next opportunity. */
+export function requestPreempt(): void {
+  preemptRequested = true;
+}
+
+/** Check if a preemption was requested (used by worker in agent loop). */
+export function isPreemptRequested(): boolean {
+  return preemptRequested;
+}
+
+/** Clear the preemption flag (called after worker yields). */
+export function clearPreempt(): void {
+  preemptRequested = false;
 }

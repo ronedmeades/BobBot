@@ -10,7 +10,14 @@ import { toolDefinitions } from "./tools.js";
 import { executeTool, type ToolContext } from "./tool-executor.js";
 import { memory, type UserProfile } from "./memory.js";
 import { events } from "../dashboard/events.js";
-import { setIsBusy } from "../tasks/busy-state.js";
+import {
+  getIsBusy,
+  setIsBusy,
+  getActiveContext,
+  requestPreempt,
+  isPreemptRequested,
+  clearPreempt,
+} from "../tasks/busy-state.js";
 import { getAvailableChannels } from "../tasks/escalation.js";
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
@@ -112,6 +119,23 @@ export async function runAgent(
   source: "telegram" | "dashboard" | "worker" = "telegram"
 ): Promise<AgentResponse> {
   const isWorker = source === "worker";
+
+  // If a background task is running, preempt it so direct chat takes priority
+  if (!isWorker && getIsBusy() && getActiveContext() === "worker") {
+    console.log("[agent] Chat incoming — requesting worker preemption");
+    requestPreempt();
+
+    const maxWait = 30_000;
+    const start = Date.now();
+    while (getIsBusy() && Date.now() - start < maxWait) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    if (getIsBusy()) {
+      console.log("[agent] Worker didn't yield in time — proceeding anyway");
+    }
+  }
+
   if (!isWorker) {
     setIsBusy(true, "chat");
   }
@@ -182,6 +206,14 @@ async function runAgentInner(
 
   // Agentic loop — keep going while the LLM wants to use tools
   while (rounds < config.agent.maxToolRounds) {
+    // Check if worker should yield to a direct chat message
+    if (source === "worker" && isPreemptRequested()) {
+      console.log("[agent] Worker preempted by direct chat — yielding");
+      clearPreempt();
+      events.emitEvent("agent:status", { userId, status: "done", detail: "Preempted" });
+      return { text: "(Preempted by direct chat — will continue on next tick)", toolsUsed };
+    }
+
     rounds++;
 
     events.emitEvent("agent:status", {
