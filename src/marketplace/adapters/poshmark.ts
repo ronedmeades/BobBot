@@ -1,13 +1,20 @@
 /**
  * Poshmark Marketplace Adapter — Stub
  *
- * Poshmark does not have a public API. This adapter serves as a template
- * and returns helpful guidance pointing users toward browser automation
- * or a custom local adapter.
+ * Poshmark does NOT have any public or private API as of February 2026.
+ * Unlike Depop (which has a private partner API) or eBay/Etsy (which have
+ * public APIs), Poshmark offers no programmatic access at all.
  *
- * To build a real Poshmark adapter, create local/skills/poshmark-marketplace.ts
- * exporting a marketplaceAdapter: AdapterFactory that uses Bob's browser
- * automation tools (Playwright) to interact with poshmark.com.
+ * Options for Poshmark sellers:
+ *   1. Use Bob's browser automation (Playwright) to navigate poshmark.com
+ *      and perform actions like listing, checking orders, messaging buyers.
+ *      This works but is fragile — Poshmark can change their UI at any time.
+ *   2. Use a third-party service like Vendoo, List Perfectly, or Crosslist
+ *      that supports Poshmark cross-listing (they use browser automation too).
+ *   3. Manage Poshmark manually and use Bob for other platforms.
+ *
+ * If Poshmark ever releases an API, create a local adapter in
+ * local/skills/poshmark-marketplace.ts exporting a marketplaceAdapter.
  */
 
 import type {
@@ -23,10 +30,15 @@ import type {
 } from "../types.js";
 
 const STUB_MSG =
-  "Poshmark does not have a public API. To interact with Poshmark, you can:\n" +
-  "1. Use Bob's browser automation tools (browse_url, click_element, type_into) to navigate poshmark.com\n" +
-  "2. Create a local adapter in local/skills/poshmark-marketplace.ts that automates the Poshmark web UI\n" +
-  "3. Check poshmark.com manually for now";
+  "Poshmark does NOT have any API (public or private) as of February 2026.\n\n" +
+  "Unlike eBay/Etsy (public APIs) or Depop (private partner API), Poshmark offers " +
+  "no programmatic access at all.\n\n" +
+  "Options:\n" +
+  "1. Use Bob's browser automation (browse_url, click_element, type_into) to navigate poshmark.com — " +
+  "this works but is fragile since Poshmark can change their UI\n" +
+  "2. Use a cross-listing service like Vendoo, List Perfectly, or Crosslist that supports Poshmark\n" +
+  "3. Manage Poshmark manually and use Bob for eBay/Etsy/Depop\n\n" +
+  "If Poshmark ever releases an API, a local adapter can be created in local/skills/poshmark-marketplace.ts";
 
 class PoshmarkStubAdapter implements MarketplaceAdapter {
   readonly platform = "poshmark" as const;
@@ -65,6 +77,9 @@ export const poshmarkAdapterFactory: AdapterFactory = {
   platform: "poshmark",
   displayName: "Poshmark",
   requiredEnvVars: [],
-  notes: "STUB: Poshmark has no public API. Use browser automation or create a local adapter in local/skills/.",
+  notes:
+    "STUB: Poshmark has NO API (public or private) as of Feb 2026. " +
+    "Options: browser automation via Bob's Playwright tools, cross-listing services (Vendoo, List Perfectly, Crosslist), " +
+    "or manual management. If Poshmark ever releases an API, create a local adapter in local/skills/.",
   create: () => new PoshmarkStubAdapter(),
 };

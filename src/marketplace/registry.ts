@@ -2,7 +2,7 @@
  * Marketplace Adapter Registry
  *
  * Manages built-in + local marketplace adapters.
- * Built-in: eBay, Etsy, Poshmark
+ * Built-in: eBay, Etsy, Poshmark, Depop
  * Local: auto-discovered from local/skills/ (export marketplaceAdapter)
  */
 
@@ -65,10 +65,12 @@ export async function initMarketplaceAdapters(): Promise<void> {
   const { ebayAdapterFactory } = await import("./adapters/ebay.js");
   const { etsyAdapterFactory } = await import("./adapters/etsy.js");
   const { poshmarkAdapterFactory } = await import("./adapters/poshmark.js");
+  const { depopAdapterFactory } = await import("./adapters/depop.js");
 
   registerAdapter(ebayAdapterFactory);
   registerAdapter(etsyAdapterFactory);
   registerAdapter(poshmarkAdapterFactory);
+  registerAdapter(depopAdapterFactory);
 
   // Discover local marketplace adapters
   await discoverLocalAdapters();

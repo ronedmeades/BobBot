@@ -211,7 +211,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~118 total across 28 skill modules)
+### Available Tools (~118 total across 28 skill modules, 4 marketplace platforms)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -442,7 +442,7 @@ Both share conversation history via the owner's user ID.
 | `send_sms` | Send SMS text message to owner |
 | `get_call_status` | Check call progress/status by Call SID |
 
-**Marketplace Engine (10)** — cross-platform (eBay, Etsy, Poshmark + local adapters):
+**Marketplace Engine (10)** — cross-platform (eBay, Etsy, Poshmark, Depop + local adapters):
 | Tool | What It Does |
 |------|-------------|
 | `marketplace_list_platforms` | List registered platforms and config status |
@@ -572,7 +572,7 @@ pnpm test             # Run tests (vitest)
 
 - [x] Desktop & taskbar shortcut — click to launch Bob (or focus if already running)
 - [x] Notification system — per-task notify_via + user default preference
-- [x] Marketplace engine — cross-platform adapter pattern (eBay, Etsy, Poshmark + local adapters)
+- [x] Marketplace engine — cross-platform adapter pattern (eBay, Etsy, Poshmark, Depop + local adapters)
 - [ ] Test Twilio phone call & SMS (set up env vars, verify number, try "call me and say hello")
 - [ ] Escalation engine phase 2: Standing rules + eBay order monitoring (auto-nag unshipped orders)
 - [ ] Escalation engine phase 3: Proactive suggestions — Bob suggests setting up escalations when he first encounters a task type (e.g. "I see you listed on eBay — want me to remind you to ship?")
