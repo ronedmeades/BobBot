@@ -197,7 +197,7 @@ Bob will walk you through the whole process step by step.
 
 ## What Can Bob Do?
 
-Bob has **100 tools across 26 skill modules**. Here's what he can do out of the box:
+Bob has **118 tools across 28 skill modules**. Here's what he can do out of the box:
 
 **Basics:**
 - **Fetch web pages and APIs** — research topics, check prices, read documentation
@@ -207,6 +207,7 @@ Bob has **100 tools across 26 skill modules**. Here's what he can do out of the 
 
 **Productivity:**
 - **Calendar & events** — schedule meetings, deadlines, recurring events with reminders
+- **Google Calendar** — list/create/update/delete events in Google Calendar, view attendees, recurrence
 - **Reminders** — "remind me in 2 hours", "tomorrow morning", snooze support
 - **Contacts** — address book with search, tags, and relationships
 - **Quick capture** — jot down ideas, links, todos, snippets — searchable later

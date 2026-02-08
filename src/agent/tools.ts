@@ -25,6 +25,7 @@ import { quickCaptureToolDefinitions } from "../skills/quick-capture.js";
 import { browserToolDefinitions } from "../skills/browser.js";
 import { phoneToolDefinitions } from "../skills/phone.js";
 import { marketplaceToolDefinitions } from "../skills/marketplace.js";
+import { googleCalendarToolDefinitions } from "../skills/google-calendar.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -260,6 +261,8 @@ const builtinTools: ToolDefinition[] = [
   ...phoneToolDefinitions,
   // Marketplace engine (eBay, Etsy, Poshmark, local adapters)
   ...marketplaceToolDefinitions,
+  // Google Calendar
+  ...googleCalendarToolDefinitions,
 ];
 
 /**

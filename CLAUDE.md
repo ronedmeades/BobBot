@@ -165,6 +165,7 @@ bob/
     │   ├── translation.ts       # LLM-powered translation and language detection
     │   ├── browser.ts           # Playwright browser automation (Chromium, lazy-launched)
     │   ├── phone.ts             # Twilio phone calls & SMS (owner-only, no new deps)
+    │   ├── google-calendar.ts   # Google Calendar API (OAuth2, same client as Gmail)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     ├── marketplace/
@@ -210,7 +211,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~112 total across 27 skill modules)
+### Available Tools (~118 total across 28 skill modules)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -340,6 +341,16 @@ Both share conversation history via the owner's user ID.
 | `update_event` | Modify an existing event |
 | `remove_event` | Delete an event |
 | `complete_event` | Mark done (recurring events advance to next occurrence) |
+
+**Google Calendar (6)** — requires Google Calendar API credentials:
+| Tool | What It Does |
+|------|-------------|
+| `list_google_calendars` | List all calendars in the user's Google account |
+| `list_google_events` | List upcoming events with date range and search filters |
+| `get_google_event` | Get full event details (attendees, recurrence, reminders) |
+| `create_google_event` | Create event with attendees, location, recurrence, reminders |
+| `update_google_event` | Modify an existing Google Calendar event |
+| `delete_google_event` | Delete an event from Google Calendar |
 
 **Social Media (2):**
 | Tool | What It Does |

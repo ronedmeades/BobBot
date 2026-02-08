@@ -169,6 +169,14 @@ import {
   handleMarketplaceGetUnshipped,
   handleMarketplaceBulkShip,
 } from "../skills/marketplace.js";
+import {
+  handleListGoogleCalendars,
+  handleListGoogleEvents,
+  handleGetGoogleEvent,
+  handleCreateGoogleEvent,
+  handleUpdateGoogleEvent,
+  handleDeleteGoogleEvent,
+} from "../skills/google-calendar.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -465,6 +473,19 @@ export async function executeTool(
         return await handleMarketplaceGetUnshipped(input);
       case "marketplace_bulk_ship":
         return await handleMarketplaceBulkShip(input);
+      // Google Calendar
+      case "list_google_calendars":
+        return await handleListGoogleCalendars();
+      case "list_google_events":
+        return await handleListGoogleEvents(input);
+      case "get_google_event":
+        return await handleGetGoogleEvent(input);
+      case "create_google_event":
+        return await handleCreateGoogleEvent(input);
+      case "update_google_event":
+        return await handleUpdateGoogleEvent(input);
+      case "delete_google_event":
+        return await handleDeleteGoogleEvent(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);
