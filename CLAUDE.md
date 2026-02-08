@@ -99,6 +99,7 @@ bob/
 ├── .gitignore             # Standard ignores (node_modules, .env, dist, memory/, etc.)
 ├── .env.example           # Template for required environment variables
 ├── .env                   # YOUR config — never committed (gitignored)
+├── medical-records-research-summary.txt  # Vitalos research — kept locally, gitignored
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
 ├── local/                 # Local-only skills and personal data (gitignored)
