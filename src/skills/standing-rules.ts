@@ -62,7 +62,12 @@ interface StandingRulesFile {
 const RULES_PATH = resolve("memory", "standing-rules.json");
 
 let rules: StandingRule[] = [];
+let initialized = false;
 
+/**
+ * Load rules from disk. Called once at startup via initStandingRules().
+ * After init, all handlers work with the in-memory array and save on mutation.
+ */
 async function loadRules(): Promise<void> {
   try {
     const raw = await readFile(RULES_PATH, "utf-8");
@@ -71,12 +76,26 @@ async function loadRules(): Promise<void> {
   } catch {
     rules = [];
   }
+  initialized = true;
 }
 
 async function saveRules(): Promise<void> {
   await mkdir(resolve("memory"), { recursive: true });
   const data: StandingRulesFile = { version: 1, rules };
   await writeFile(RULES_PATH, JSON.stringify(data, null, 2), "utf-8");
+}
+
+/** Initialize standing rules — load from disk once at startup. */
+export async function initStandingRules(): Promise<void> {
+  await ensureLoaded();
+  if (rules.length > 0) {
+    console.log(`[standing-rules] Loaded ${rules.length} rules from disk`);
+  }
+}
+
+/** Ensure rules are loaded (fallback if init wasn't called). */
+async function ensureLoaded(): Promise<void> {
+  if (!initialized) await loadRules();
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +228,7 @@ export const standingRulesToolDefinitions: ToolDefinition[] = [
 export async function handleCreateStandingRule(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
-  await loadRules();
+  await ensureLoaded();
 
   const name = input.name as string;
   const type = input.type as StandingRuleType;
@@ -260,7 +279,7 @@ export async function handleCreateStandingRule(
 }
 
 export async function handleListStandingRules(): Promise<ToolResult> {
-  await loadRules();
+  await ensureLoaded();
 
   if (rules.length === 0) {
     return {
@@ -296,7 +315,7 @@ export async function handleListStandingRules(): Promise<ToolResult> {
 export async function handleUpdateStandingRule(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
-  await loadRules();
+  await ensureLoaded();
 
   const ruleId = input.rule_id as string;
   if (!ruleId) return { success: false, output: "rule_id is required." };
@@ -346,7 +365,7 @@ export async function handleUpdateStandingRule(
 export async function handleRemoveStandingRule(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
-  await loadRules();
+  await ensureLoaded();
 
   const ruleId = input.rule_id as string;
   if (!ruleId) return { success: false, output: "rule_id is required." };
@@ -555,7 +574,7 @@ async function getOwnerChatId(): Promise<number | null> {
  * Returns alert messages for rules that triggered (scheduler sends them).
  */
 export async function checkStandingRules(): Promise<string[]> {
-  await loadRules();
+  await ensureLoaded();
 
   const enabled = rules.filter((r) => r.enabled);
   if (enabled.length === 0) return [];

@@ -7,7 +7,7 @@ import { checkScheduledTasks, initScheduledTasks } from "../skills/scheduler.js"
 import { checkAllWatches } from "../skills/web-monitor.js";
 import { checkCalendarReminders } from "../skills/calendar.js";
 import { checkReminders } from "../skills/reminders.js";
-import { checkStandingRules } from "../skills/standing-rules.js";
+import { checkStandingRules, initStandingRules } from "../skills/standing-rules.js";
 import { getIsBusy } from "./busy-state.js";
 
 /**
@@ -220,8 +220,9 @@ async function runAllChecks(): Promise<void> {
 export async function startScheduler(): Promise<void> {
   if (schedulerTimer) return; // Already running
 
-  // Initialize scheduled tasks from disk
+  // Initialize scheduled tasks and standing rules from disk
   await initScheduledTasks();
+  await initStandingRules();
 
   const backupPath = process.env.BACKUP_PATH;
   const intervalDays = getBackupIntervalDays();
