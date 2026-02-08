@@ -591,11 +591,28 @@ pnpm test             # Run tests (vitest)
 - [x] Desktop & taskbar shortcut — click to launch Bob (or focus if already running)
 - [x] Notification system — per-task notify_via + user default preference
 - [x] Marketplace engine — cross-platform adapter pattern (eBay, Etsy, Poshmark, Depop + local adapters)
-- [ ] Test Twilio phone call & SMS (set up env vars, verify number, try "call me and say hello")
+- [x] Test Twilio phone call & SMS — credentials configured, calls working (trial account, SMS needs upgrade)
 - [x] Escalation engine phase 2: Standing rules + marketplace monitoring (unshipped orders, new orders, messages, daily summary)
 - [x] Escalation engine phase 3: Proactive insights — trigger history tracking, 5 insight detectors, weekly insights digest
+- [x] Worker preemption — direct chat now preempts background tasks (busy state yields between tool rounds)
+- [x] Hallucination guard — catches when Bob claims to have done something without using the tool, forces retry
 - [ ] Bob-to-Bob communication — explore letting multiple Bob instances talk to each other (discuss design first)
-- [ ] MCP (Model Context Protocol) client — plug-and-play tool servers
+- [ ] MCP (Model Context Protocol) client — plug-and-play tool servers (high priority if project goes public)
+- [ ] Tool loading optimization — consider category-based or on-demand tool loading to reduce 137-tool context pressure
+- [ ] Discord server for Bob community — research and set up
+- [ ] Daily tech news digest — automated summary of AI/robotics/tech news
+- [ ] Twilio upgrade — upgrade from trial to enable SMS and remove trial call announcement
+
+## Known Issues
+
+### Tool Hallucination (mitigated)
+With ~137 tools loaded on every message, the LLM sometimes "describes" taking an action (e.g. "Calling you now!") without actually invoking the tool. This is a known LLM behavior under high tool-count context pressure. **Mitigations in place:**
+1. System prompt includes explicit `CRITICAL — Tool usage rules` section forbidding fake actions
+2. `detectUnusedActions()` guard in `core.ts` catches claims about calls, SMS, calendar, reminders, and emails without corresponding tool usage, and re-enters the agent loop with a correction prompt
+3. Future: MCP and category-based tool loading will reduce context pressure
+
+### Worker Preemption
+Background tasks used to block direct chat entirely. Fixed with preemption: when a chat message arrives, the worker yields at the next tool-round boundary (5-30s worst case). Implementation in `busy-state.ts` (preempt flag) and `core.ts` (check + wait-for-yield).
 
 ## Notes
 
