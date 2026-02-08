@@ -20,6 +20,11 @@ import {
   clearPreempt,
 } from "../tasks/busy-state.js";
 import { getAvailableChannels } from "../tasks/escalation.js";
+import {
+  selectToolsForMessage,
+  getToolsForCategories,
+  buildCategorySystemPromptSection,
+} from "./tool-loader.js";
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
   const userName = profile?.name ?? "mate";
@@ -255,8 +260,13 @@ async function runAgentInner(
     await memory.saveProfile(profile);
   }
 
-  const systemPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes);
-  const activeToolDefs = options?.toolDefs ?? toolDefinitions;
+  const isDirectChat = source === "telegram" || source === "dashboard";
+  const baseSysPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes);
+  const systemPrompt = isDirectChat && !options?.systemPrompt
+    ? baseSysPrompt + buildCategorySystemPromptSection()
+    : baseSysPrompt;
+  let activeToolDefs = options?.toolDefs
+    ?? (isDirectChat ? selectToolsForMessage(userMessage, toolDefinitions) : toolDefinitions);
   const activeToolExecutor = options?.toolExecutor ?? executeTool;
   const maxToolRounds = options?.maxRounds ?? config.agent.maxToolRounds;
   const toolContext: ToolContext = { userId };
@@ -281,6 +291,10 @@ async function runAgentInner(
     content: userMessage,
     timestamp: new Date().toISOString(),
   });
+
+  if (isDirectChat && !options?.toolDefs) {
+    console.log(`[tool-loader] ${activeToolDefs.length} tools selected (of ${toolDefinitions.length} total)`);
+  }
 
   const toolsUsed: string[] = [];
   let rounds = 0;
@@ -391,6 +405,23 @@ async function runAgentInner(
 
     // Add tool results to conversation
     messages.push({ role: "user", content: toolResults });
+
+    // Expand active tools if load_tools was called
+    const loadToolsCalls = toolUseBlocks.filter((b) => b.name === "load_tools");
+    if (loadToolsCalls.length > 0) {
+      const existingNames = new Set(activeToolDefs.map((d) => d.name));
+      for (const call of loadToolsCalls) {
+        const cats = ((call.input as Record<string, unknown>).categories as string[]) ?? [];
+        const newDefs = getToolsForCategories(cats, toolDefinitions);
+        for (const def of newDefs) {
+          if (!existingNames.has(def.name)) {
+            activeToolDefs.push(def);
+            existingNames.add(def.name);
+          }
+        }
+        console.log(`[tool-loader] Expanded: +${cats.join(", ")} → ${activeToolDefs.length} tools`);
+      }
+    }
   }
 
   // If we hit the max rounds, return what we have

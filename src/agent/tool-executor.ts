@@ -558,6 +558,17 @@ export async function executeTool(
         return await handleA2AAuditLog(input);
       case "approve_a2a_request":
         return await handleApproveA2ARequest(input);
+      // Tool loading (actual expansion happens in core.ts)
+      case "load_tools": {
+        const categories = (input.categories as string[]) ?? [];
+        const { getToolsForCategories: getCats, isValidCategory } = await import("./tool-loader.js");
+        const { toolDefinitions: allDefs } = await import("./tools.js");
+        const loaded = getCats(categories, allDefs);
+        const unknowns = categories.filter((c) => !isValidCategory(c));
+        let msg = `Loaded ${categories.length} category(s): ${categories.join(", ")}. ${loaded.length} tools now available.`;
+        if (unknowns.length > 0) msg += ` Unknown categories (ignored): ${unknowns.join(", ")}`;
+        return { success: true, output: msg };
+      }
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);
