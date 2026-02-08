@@ -190,12 +190,7 @@ function buildTwiml(message: string, voice: string): string {
     ? `${text} ... The rest of this message was too long for a phone call. Please check your Telegram messages for the full text.`
     : text;
 
-  return [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    "<Response>",
-    `  <Say voice="${escapeXml(voice)}">${escapeXml(spokenText)}</Say>`,
-    "</Response>",
-  ].join("\n");
+  return `<Response><Say voice="${escapeXml(voice)}">${escapeXml(spokenText)}</Say></Response>`;
 }
 
 // --- Handlers ---
