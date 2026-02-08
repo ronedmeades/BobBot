@@ -7,6 +7,7 @@ import type {
   ResponseBlock,
 } from "../providers/types.js";
 import { toolDefinitions } from "./tools.js";
+import type { ToolDefinition } from "../providers/types.js";
 import { executeTool, type ToolContext } from "./tool-executor.js";
 import { memory, type UserProfile } from "./memory.js";
 import { events } from "../dashboard/events.js";
@@ -119,18 +120,35 @@ export interface AgentResponse {
   toolsUsed: string[];
 }
 
+export type AgentSource = "telegram" | "dashboard" | "worker" | "a2a";
+
+/** Optional overrides for sandboxed/restricted agent runs (e.g. A2A). */
+export interface AgentOptions {
+  systemPrompt?: string;
+  toolDefs?: ToolDefinition[];
+  maxRounds?: number;
+  toolExecutor?: (
+    name: string,
+    input: Record<string, unknown>,
+    context?: ToolContext
+  ) => Promise<{ success: boolean; output: string }>;
+}
+
 /**
  * Run the agent loop: send a message, let the LLM use tools, repeat until done.
  */
 export async function runAgent(
   userId: string,
   userMessage: string,
-  source: "telegram" | "dashboard" | "worker" = "telegram"
+  source: AgentSource = "telegram",
+  options?: AgentOptions
 ): Promise<AgentResponse> {
   const isWorker = source === "worker";
+  const isA2A = source === "a2a";
 
   // If a background task is running, preempt it so direct chat takes priority
-  if (!isWorker && getIsBusy() && getActiveContext() === "worker") {
+  // A2A requests don't preempt — they wait or queue
+  if (!isWorker && !isA2A && getIsBusy() && getActiveContext() === "worker") {
     console.log("[agent] Chat incoming — requesting worker preemption");
     requestPreempt();
 
@@ -145,14 +163,14 @@ export async function runAgent(
     }
   }
 
-  if (!isWorker) {
+  if (!isWorker && !isA2A) {
     setIsBusy(true, "chat");
   }
 
   try {
-    return await runAgentInner(userId, userMessage, source);
+    return await runAgentInner(userId, userMessage, source, options);
   } finally {
-    if (!isWorker) {
+    if (!isWorker && !isA2A) {
       setIsBusy(false);
     }
   }
@@ -210,9 +228,11 @@ function detectUnusedActions(
 async function runAgentInner(
   userId: string,
   userMessage: string,
-  source: "telegram" | "dashboard" | "worker"
+  source: AgentSource,
+  options?: AgentOptions
 ): Promise<AgentResponse> {
-  events.emitEvent("message:in", { userId, text: userMessage, source: source === "worker" ? "dashboard" : source });
+  const eventSource = source === "worker" || source === "a2a" ? "dashboard" : source;
+  events.emitEvent("message:in", { userId, text: userMessage, source: eventSource });
 
   // Load user profile and notes for dynamic prompt
   let profile = await memory.loadProfile(userId);
@@ -235,7 +255,10 @@ async function runAgentInner(
     await memory.saveProfile(profile);
   }
 
-  const systemPrompt = buildSystemPrompt(profile, notes);
+  const systemPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes);
+  const activeToolDefs = options?.toolDefs ?? toolDefinitions;
+  const activeToolExecutor = options?.toolExecutor ?? executeTool;
+  const maxToolRounds = options?.maxRounds ?? config.agent.maxToolRounds;
   const toolContext: ToolContext = { userId };
 
   // Load conversation history for context
@@ -263,7 +286,7 @@ async function runAgentInner(
   let rounds = 0;
 
   // Agentic loop — keep going while the LLM wants to use tools
-  while (rounds < config.agent.maxToolRounds) {
+  while (rounds < maxToolRounds) {
     // Check if worker should yield to a direct chat message
     if (source === "worker" && isPreemptRequested()) {
       console.log("[agent] Worker preempted by direct chat — yielding");
@@ -284,7 +307,7 @@ async function runAgentInner(
       model: config.llm.model,
       maxTokens: 4096,
       system: systemPrompt,
-      tools: toolDefinitions,
+      tools: activeToolDefs,
       messages,
     });
 
@@ -304,7 +327,7 @@ async function runAgentInner(
 
       // Guard: detect when Bob claims to have done something without using the tool
       const missed = detectUnusedActions(finalText, toolsUsed);
-      if (missed && rounds < config.agent.maxToolRounds) {
+      if (missed && rounds < maxToolRounds) {
         console.log(`[agent] Hallucination guard: Bob claimed "${missed.claim}" without using ${missed.tool}`);
         messages.push({ role: "assistant", content: response.content as ContentBlock[] });
         messages.push({
@@ -345,7 +368,7 @@ async function runAgentInner(
 
         events.emitEvent("tool:call", { tool: toolUse.name, input: toolUse.input, userId });
 
-        const result = await executeTool(
+        const result = await activeToolExecutor(
           toolUse.name,
           toolUse.input as Record<string, unknown>,
           toolContext

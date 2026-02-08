@@ -118,7 +118,11 @@ bob/
 │   ├── reminders.json     # Quick reminders with snooze
 │   ├── screenshots/       # Browser automation screenshots
 │   ├── task-queue.json    # Background task queue (persistent)
-│   └── vault.json         # Personal data vault for form filling
+│   ├── vault.json         # Personal data vault for form filling
+│   ├── a2a-peers.json     # A2A peer registry (when A2A enabled)
+│   ├── a2a-audit.json     # A2A interaction audit log
+│   ├── a2a-tasks.json     # A2A protocol task state
+│   └── a2a-approvals.json # A2A pending approval requests
 └── src/
     ├── index.ts           # Entry point — starts bot + dashboard + scheduler, seeds owner profile
     ├── config.ts          # Loads .env, validates required keys, multi-provider support
@@ -170,7 +174,17 @@ bob/
     │   ├── env-manager.ts       # Safely set/list .env vars (allowlisted keys only)
     │   ├── standing-rules.ts    # Persistent marketplace monitoring rules (hourly scheduler)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
+    │   ├── a2a-client.ts        # A2A client tools (discover, send, peers, trust, audit)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
+    ├── a2a/
+    │   ├── types.ts       # A2A protocol interfaces (PeerAgent, AgentCard, JSON-RPC, etc.)
+    │   ├── registry.ts    # Peer registry + per-peer tokens + trust tiers + rate limits
+    │   ├── audit.ts       # Rolling audit log (500 entries, 30-day cleanup)
+    │   ├── approvals.ts   # Owner approval flow (task + handshake requests)
+    │   ├── public-skills.ts # Three-tier security boundary (safe/data/blocked tools)
+    │   ├── tasks.ts       # A2A protocol task state management
+    │   ├── sandbox.ts     # Sandboxed execution for external requests
+    │   └── server.ts      # HTTP handler (Agent Card, JSON-RPC, handshake, ping)
     ├── marketplace/
     │   ├── types.ts       # MarketplaceAdapter interface, Order, Message, etc.
     │   ├── registry.ts    # Adapter registry + local adapter discovery
@@ -475,6 +489,18 @@ Both share conversation history via the owner's user ID.
 | `update_standing_rule` | Modify params, enable/disable, change notification channels |
 | `remove_standing_rule` | Delete a monitoring rule |
 
+**A2A Client — Agent-to-Agent Communication (8)** — requires `A2A_ENABLED=true`:
+| Tool | What It Does |
+|------|-------------|
+| `discover_agent` | Fetch Agent Card from URL, initiate handshake or open connection |
+| `send_to_agent` | Send message/task to a known peer via JSON-RPC |
+| `list_peers` | List all peers with trust tier, presence, and activity |
+| `get_peer_details` | Full peer details (skills, budget, rate limits, recent audit) |
+| `set_peer_trust` | Change trust tier (blocked/manual/trusted/budget-capped) + budget/rate config |
+| `remove_peer` | Remove peer from registry |
+| `a2a_audit_log` | View A2A interaction history with cost tracking |
+| `approve_a2a_request` | Approve/reject pending task or handshake requests |
+
 ### Event Bus (src/dashboard/events.ts)
 
 Typed EventEmitter singleton. All modules emit events, the SSE endpoint streams them
@@ -488,6 +514,10 @@ to the dashboard in real-time. Maintains a 50-event ring buffer for history on c
 | `message:out` | userId, text | core.ts |
 | `task:update` | taskId, status, description | runner.ts |
 | `bot:status` | running | telegram.ts, index.ts |
+| `a2a:request` | peerId, peerName, method, approved | server.ts (a2a) |
+| `a2a:response` | peerId, taskId, state, costUsd | server.ts (a2a) |
+| `a2a:approval` | requestId, peerName, description, status, type | server.ts (a2a) |
+| `a2a:peer` | peerId, peerName, action | server.ts (a2a) |
 
 ### Dashboard API (src/dashboard/server.ts)
 
@@ -504,8 +534,18 @@ Node built-in `http.createServer()`. No frameworks. Port 3000 (configurable).
 | POST | `/api/chat` | Send message to Bob, get response |
 | POST | `/api/bot/start` | Start Telegram polling |
 | POST | `/api/bot/stop` | Stop Telegram polling |
+| GET | `/.well-known/agent.json` | A2A Agent Card (public, no auth, 404 in private mode) |
+| GET | `/a2a/ping` | A2A presence check (no auth) |
+| POST | `/a2a/handshake` | A2A mutual discovery handshake (peer token auth) |
+| POST | `/a2a` | A2A JSON-RPC dispatch (peer token auth) |
+| GET | `/api/a2a/peers` | Dashboard: list A2A peers |
+| GET | `/api/a2a/audit` | Dashboard: A2A audit log |
+| GET | `/api/a2a/approvals` | Dashboard: pending approvals |
+| POST | `/api/a2a/approvals/:id/approve` | Dashboard: approve a request |
+| POST | `/api/a2a/approvals/:id/reject` | Dashboard: reject a request |
 
-All API endpoints require `BOB_API_TOKEN` authentication (header or query param).
+All `/api/*` endpoints require `BOB_API_TOKEN` authentication (header or query param).
+A2A endpoints (`/.well-known/agent.json`, `/a2a/*`) use per-peer token auth (separate from dashboard).
 
 ### Memory System (src/agent/memory.ts)
 
@@ -514,6 +554,34 @@ All API endpoints require `BOB_API_TOKEN` authentication (header or query param)
 - Named notes as markdown files
 - User profiles in `memory/profile-{id}.json`
 - **All memory is local-only** — gitignored, never committed
+
+### A2A (Agent-to-Agent) Protocol (src/a2a/)
+
+Bob instances can discover, connect, and communicate with other A2A-compatible agents using
+the open A2A protocol (Google/Linux Foundation standard). Disabled by default — set `A2A_ENABLED=true`.
+
+**Architecture:**
+- **Agent Card** at `/.well-known/agent.json` — public discovery endpoint
+- **JSON-RPC 2.0** over HTTP at `/a2a` — authenticated message exchange
+- **Handshake** at `/a2a/handshake` — mutual discovery with owner approval
+- **Ping** at `/a2a/ping` — lightweight presence check
+
+**Security model (defense-in-depth):**
+- **Trust Tiers**: Blocked (reject all) → Manual (require owner approval, default) → Trusted (auto-approve) → Budget-capped (auto-approve up to $X)
+- **Three-tier tool access**: SAFE tools (~20, any peer) / DATA tools (~15, Trusted only) / BLOCKED tools (~60+, never external)
+- **Per-peer tokens**: Each peer gets a unique auth token — one compromised token doesn't affect others
+- **Sandbox**: External requests run in isolated context — separate userId, restricted tools, custom system prompt, 5 tool rounds max, 60s timeout
+- **Prompt injection defense**: External messages wrapped in delimiters, system prompt warns against treating as instructions
+- **Anti-recursion**: Module-level flag prevents forwarding chains; A2A client tools are in BLOCKED_TOOLS set
+- **Discovery modes**: Open (anyone connects) / Handshake (mutual approval, default) / Private (invisible)
+- **Rate limits**: Per-peer hourly caps (default 10/hr), auto-reset by scheduler
+- **Audit**: Every interaction logged with cost, peer, method, approval status (rolling 500 entries)
+- **Owner controls**: Telegram `/approve`, `/reject`, `/trust` commands; dashboard UI; budget caps with cost tracking
+
+**Telegram commands:**
+- `/approve <id>` — approve a pending A2A request (task or handshake)
+- `/reject <id>` — reject a pending request
+- `/trust <id>` — approve AND set peer to Trusted tier (auto-approve all future requests)
 
 ---
 
@@ -597,7 +665,7 @@ pnpm test             # Run tests (vitest)
 - [x] Escalation engine phase 3: Proactive insights — trigger history tracking, 5 insight detectors, weekly insights digest
 - [x] Worker preemption — direct chat now preempts background tasks (busy state yields between tool rounds)
 - [x] Hallucination guard — catches when Bob claims to have done something without using the tool, forces retry
-- [ ] Bob-to-Bob communication — explore letting multiple Bob instances talk to each other (discuss design first)
+- [x] Bob-to-Bob communication — A2A protocol implementation (Agent Card, JSON-RPC, handshake, sandbox, trust tiers, 8 client tools)
 - [ ] MCP (Model Context Protocol) client — plug-and-play tool servers (high priority if project goes public)
 - [ ] Tool loading optimization — consider category-based or on-demand tool loading to reduce 137-tool context pressure
 - [ ] Discord server for Bob community — research and set up

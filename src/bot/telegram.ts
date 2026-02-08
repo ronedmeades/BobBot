@@ -66,6 +66,71 @@ export function createBot(): Bot {
     );
   });
 
+  // /approve command — approve a pending A2A request
+  bot.command("approve", async (ctx) => {
+    const id = ctx.match?.trim();
+    if (!id) {
+      await ctx.reply("Usage: /approve <request-id>");
+      return;
+    }
+    try {
+      const { resolveApproval } = await import("../a2a/approvals.js");
+      const result = await resolveApproval(id, "approved");
+      if (!result) {
+        await ctx.reply(`Request "${id}" not found or already resolved.`);
+        return;
+      }
+      await ctx.reply(`Approved ${result.type} from "${result.peerName}".`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await ctx.reply(`Error: ${msg}`);
+    }
+  });
+
+  // /reject command — reject a pending A2A request
+  bot.command("reject", async (ctx) => {
+    const id = ctx.match?.trim();
+    if (!id) {
+      await ctx.reply("Usage: /reject <request-id>");
+      return;
+    }
+    try {
+      const { resolveApproval } = await import("../a2a/approvals.js");
+      const result = await resolveApproval(id, "rejected");
+      if (!result) {
+        await ctx.reply(`Request "${id}" not found or already resolved.`);
+        return;
+      }
+      await ctx.reply(`Rejected ${result.type} from "${result.peerName}".`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await ctx.reply(`Error: ${msg}`);
+    }
+  });
+
+  // /trust command — approve AND set peer to Trusted tier
+  bot.command("trust", async (ctx) => {
+    const id = ctx.match?.trim();
+    if (!id) {
+      await ctx.reply("Usage: /trust <request-id>");
+      return;
+    }
+    try {
+      const { resolveApproval } = await import("../a2a/approvals.js");
+      const { setTrustTier } = await import("../a2a/registry.js");
+      const result = await resolveApproval(id, "approved");
+      if (!result) {
+        await ctx.reply(`Request "${id}" not found or already resolved.`);
+        return;
+      }
+      await setTrustTier(result.peerId, "trusted");
+      await ctx.reply(`Approved and trusted "${result.peerName}" — all future requests auto-approved.`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await ctx.reply(`Error: ${msg}`);
+    }
+  });
+
   // /status command — check on running tasks
   bot.command("status", async (ctx) => {
     const { getTasksForUser } = await import("../tasks/runner.js");

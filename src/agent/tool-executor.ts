@@ -187,6 +187,16 @@ import {
   handleUpdateStandingRule,
   handleRemoveStandingRule,
 } from "../skills/standing-rules.js";
+import {
+  handleDiscoverAgent,
+  handleSendToAgent,
+  handleListPeers,
+  handleGetPeerDetails,
+  handleSetPeerTrust,
+  handleRemovePeer,
+  handleA2AAuditLog,
+  handleApproveA2ARequest,
+} from "../skills/a2a-client.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -197,6 +207,27 @@ interface ToolResult {
 
 export interface ToolContext {
   userId: string;
+}
+
+/**
+ * Sandboxed tool executor for A2A external requests.
+ * Checks if the tool is allowed for the given trust tier before executing.
+ */
+export async function executeToolSandboxed(
+  name: string,
+  input: Record<string, unknown>,
+  context?: ToolContext,
+  trustTier: import("../a2a/types.js").TrustTier = "manual"
+): Promise<ToolResult> {
+  // Lazy import to avoid circular dependency at module load
+  const { isPublicTool } = await import("../a2a/public-skills.js");
+  if (!isPublicTool(name, trustTier)) {
+    return {
+      success: false,
+      output: `Tool "${name}" is not available for external requests.`,
+    };
+  }
+  return executeTool(name, input, context);
 }
 
 export async function executeTool(
@@ -510,6 +541,23 @@ export async function executeTool(
         return await handleUpdateGoogleEvent(input);
       case "delete_google_event":
         return await handleDeleteGoogleEvent(input);
+      // A2A client tools
+      case "discover_agent":
+        return await handleDiscoverAgent(input);
+      case "send_to_agent":
+        return await handleSendToAgent(input);
+      case "list_peers":
+        return await handleListPeers();
+      case "get_peer_details":
+        return await handleGetPeerDetails(input);
+      case "set_peer_trust":
+        return await handleSetPeerTrust(input);
+      case "remove_peer":
+        return await handleRemovePeer(input);
+      case "a2a_audit_log":
+        return await handleA2AAuditLog(input);
+      case "approve_a2a_request":
+        return await handleApproveA2ARequest(input);
       default: {
         // Try local skills before giving up
         const localResult = await executeLocalTool(name, input, context);

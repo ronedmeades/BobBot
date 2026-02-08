@@ -28,6 +28,8 @@ import { marketplaceToolDefinitions } from "../skills/marketplace.js";
 import { googleCalendarToolDefinitions } from "../skills/google-calendar.js";
 import { envManagerToolDefinitions } from "../skills/env-manager.js";
 import { standingRulesToolDefinitions } from "../skills/standing-rules.js";
+import { a2aClientToolDefinitions } from "../skills/a2a-client.js";
+import { config } from "../config.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
 
 // Built-in tool definitions
@@ -269,6 +271,8 @@ const builtinTools: ToolDefinition[] = [
   ...envManagerToolDefinitions,
   // Standing rules (marketplace monitoring)
   ...standingRulesToolDefinitions,
+  // A2A client tools (only when A2A is enabled)
+  ...(config.a2a.enabled ? a2aClientToolDefinitions : []),
 ];
 
 /**

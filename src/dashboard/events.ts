@@ -18,6 +18,10 @@ export interface BobEventMap {
   "worker:progress": { taskId: string; step: number; findings: string; nextAction: string };
   "worker:idle": Record<string, never>;
   "worker:error": { taskId: string; error: string };
+  "a2a:request": { peerId: string; peerName: string; method: string; approved: boolean };
+  "a2a:response": { peerId: string; taskId: string; state: string; costUsd: number };
+  "a2a:approval": { requestId: string; peerName: string; description: string; status: string; type: string };
+  "a2a:peer": { peerId: string; peerName: string; action: string };
 }
 
 const BUFFER_SIZE = 50;

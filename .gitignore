@@ -43,6 +43,8 @@ local/
 
 # Research documents (kept locally, not committed)
 medical-records-research-summary.txt
+openclaw-research-summary.txt
+openclaw-multi-agent-research.md
 
 # Logs
 *.log

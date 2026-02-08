@@ -40,6 +40,25 @@ async function main(): Promise<void> {
   await initTaskQueue();
   await initEscalation();
   await initMarketplaceAdapters();
+
+  // Initialize A2A (Agent-to-Agent) if enabled
+  if (config.a2a.enabled) {
+    const { initPeerRegistry } = await import("./a2a/registry.js");
+    const { initAudit } = await import("./a2a/audit.js");
+    const { initApprovals } = await import("./a2a/approvals.js");
+    const { initA2ATasks } = await import("./a2a/tasks.js");
+    const { initApprovalHandlers } = await import("./a2a/server.js");
+
+    await initPeerRegistry();
+    await initAudit();
+    await initApprovals();
+    await initA2ATasks();
+    initApprovalHandlers();
+
+    const url = config.a2a.publicUrl || `http://localhost:${process.env.DASHBOARD_PORT || 3000}`;
+    console.log(`A2A: ${config.a2a.discoveryMode} mode | ${url}/.well-known/agent.json`);
+  }
+
   startWorker();
 
   // Start scheduler (auto-backup, scheduled tasks, web monitors)
@@ -61,6 +80,19 @@ async function main(): Promise<void> {
   // Start Telegram bot if configured, otherwise dashboard-only mode
   if (config.telegram.botToken) {
     createBot();
+
+    // Wire A2A approval notifier to Telegram
+    if (config.a2a.enabled) {
+      const { getBot } = await import("./bot/telegram.js");
+      const { setApprovalNotifier } = await import("./a2a/approvals.js");
+      const tgBot = getBot();
+      if (tgBot) {
+        setApprovalNotifier(async (chatId: number, message: string) => {
+          await tgBot.api.sendMessage(chatId, message);
+        });
+      }
+    }
+
     events.emitEvent("bot:status", { running: true });
     console.log("Telegram connected. Waiting for messages...");
     await startBot();

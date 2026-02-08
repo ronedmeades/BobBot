@@ -179,6 +179,18 @@
   .event.agent-status { background: #8957e522; }
   .event.agent-status .tag { background: #8957e5; color: #fff; }
 
+  .event.a2a-request { background: #da3633aa; }
+  .event.a2a-request .tag { background: #da3633; color: #fff; }
+
+  .event.a2a-response { background: #23863622; }
+  .event.a2a-response .tag { background: #238636; color: #fff; }
+
+  .event.a2a-approval { background: #d2992222; }
+  .event.a2a-approval .tag { background: #d29922; color: #0d1117; }
+
+  .event.a2a-peer { background: #1f6feb22; }
+  .event.a2a-peer .tag { background: #1f6feb; color: #fff; }
+
   /* Chat panel */
   .chat {
     width: 400px;
@@ -584,6 +596,11 @@
         }
       }
 
+      // A2A approval notifications
+      if (event.type === 'a2a:approval' && event.data.status === 'pending') {
+        addChatBubble('assistant', 'A2A request from "' + event.data.peerName + '": "' + (event.data.description || '') + '"\nUse approve_a2a_request or Telegram /approve to respond.');
+      }
+
       // Background worker events
       if (event.type === 'worker:start' || event.type === 'worker:progress') {
         fetchTasks();
@@ -640,6 +657,20 @@
       }
       case 'bot:status':
         body = `<span class="tag">BOT</span>${event.data.running ? 'Started' : 'Stopped'}`;
+        break;
+      case 'a2a:request':
+        body = `<span class="tag">A2A IN</span>${escapeHtml(event.data.peerName)} &rarr; ${event.data.method}`;
+        break;
+      case 'a2a:response':
+        body = `<span class="tag">A2A OUT</span>${escapeHtml(event.data.taskId?.slice(0,8) || '')} (${event.data.state}) $${(event.data.costUsd || 0).toFixed(4)}`;
+        break;
+      case 'a2a:approval': {
+        const aStatus = event.data.status === 'pending' ? 'PENDING' : event.data.status.toUpperCase();
+        body = `<span class="tag">${aStatus}</span>${escapeHtml(event.data.peerName)}: ${escapeHtml(event.data.description || '')}`;
+        break;
+      }
+      case 'a2a:peer':
+        body = `<span class="tag">PEER</span>${escapeHtml(event.data.peerName)} &mdash; ${event.data.action}`;
         break;
       default:
         body = `<span class="tag">${event.type}</span>${JSON.stringify(event.data).slice(0, 100)}`;

@@ -212,6 +212,16 @@ async function runAllChecks(): Promise<void> {
   } catch (err) {
     console.error("[scheduler] Standing rules error:", err);
   }
+
+  // A2A maintenance (rate limit reset, approval expiry, cleanup, presence pings)
+  try {
+    const { config: appConfig } = await import("../config.js");
+    if (appConfig.a2a.enabled) {
+      await checkA2AMaintenance();
+    }
+  } catch (err) {
+    console.error("[scheduler] A2A maintenance error:", err);
+  }
 }
 
 /**
@@ -244,6 +254,50 @@ export async function startScheduler(): Promise<void> {
       console.error("[scheduler] Error:", err);
     });
   }, CHECK_INTERVAL_MS);
+}
+
+/**
+ * A2A maintenance tasks: reset rate limits, expire approvals, clean old data, ping peers.
+ */
+async function checkA2AMaintenance(): Promise<void> {
+  const { resetHourlyCounters, listPeers, updatePeerPresence } = await import("../a2a/registry.js");
+  const { expireOldApprovals } = await import("../a2a/approvals.js");
+  const { cleanupOldA2ATasks } = await import("../a2a/tasks.js");
+  const { cleanupOldEntries } = await import("../a2a/audit.js");
+
+  // Reset hourly rate limit counters
+  await resetHourlyCounters();
+
+  // Expire old approval requests
+  const expired = await expireOldApprovals();
+  if (expired > 0) {
+    console.log(`[a2a] Expired ${expired} old approval requests`);
+  }
+
+  // Clean up old tasks (>7 days) and audit entries (>30 days)
+  const removedTasks = await cleanupOldA2ATasks();
+  const removedAudit = await cleanupOldEntries();
+  if (removedTasks > 0 || removedAudit > 0) {
+    console.log(`[a2a] Cleaned up ${removedTasks} old tasks, ${removedAudit} old audit entries`);
+  }
+
+  // Presence ping: check all active peers
+  const peers = await listPeers();
+  for (const peer of peers) {
+    if (peer.status !== "active") continue;
+    try {
+      const resp = await fetch(`${peer.url}/a2a/ping`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (resp.ok) {
+        await updatePeerPresence(peer.id, "online");
+      } else {
+        await updatePeerPresence(peer.id, "offline");
+      }
+    } catch {
+      await updatePeerPresence(peer.id, "offline");
+    }
+  }
 }
 
 export function stopScheduler(): void {

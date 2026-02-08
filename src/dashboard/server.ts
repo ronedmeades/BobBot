@@ -12,6 +12,7 @@ import { getIsBusy, getActiveContext } from "../tasks/busy-state.js";
 import { memory } from "../agent/memory.js";
 import { startBot, stopBot, isBotRunning } from "../bot/telegram.js";
 import { recordUserInteraction } from "../tasks/escalation.js";
+import { config as appConfig } from "../config.js";
 
 const OWNER_USER_ID = config.owner.userId;
 const API_TOKEN = config.dashboard.apiToken;
@@ -56,6 +57,16 @@ async function readBody(req: IncomingMessage): Promise<string> {
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = req.url ?? "/";
   const method = req.method ?? "GET";
+
+  // A2A routes — checked BEFORE dashboard auth (different auth mechanism)
+  if (appConfig.a2a.enabled) {
+    const a2aPaths = ["/.well-known/agent.json", "/a2a/ping", "/a2a/handshake", "/a2a"];
+    if (a2aPaths.some((p) => url === p || url.startsWith(p + "?"))) {
+      const { handleA2ARequest } = await import("../a2a/server.js");
+      const handled = await handleA2ARequest(req, res);
+      if (handled) return;
+    }
+  }
 
   // CORS preflight
   if (method === "OPTIONS") {
@@ -334,6 +345,43 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       error(res, "Image not found", 404);
     }
     return;
+  }
+
+  // A2A dashboard API routes (behind dashboard auth)
+  if (appConfig.a2a.enabled && url.startsWith("/api/a2a")) {
+    if (!checkAuth(req, res)) return;
+
+    const { getDashboardPeers, getDashboardApprovals, dashboardResolveApproval } =
+      await import("../a2a/server.js");
+    const { getAuditLog } = await import("../a2a/audit.js");
+
+    if (method === "GET" && url === "/api/a2a/peers") {
+      json(res, await getDashboardPeers());
+      return;
+    }
+    if (method === "GET" && url === "/api/a2a/audit") {
+      json(res, await getAuditLog());
+      return;
+    }
+    if (method === "GET" && url === "/api/a2a/approvals") {
+      json(res, await getDashboardApprovals());
+      return;
+    }
+
+    const approveMatch = url.match(/^\/api\/a2a\/approvals\/([^/]+)\/(approve|reject)$/);
+    if (method === "POST" && approveMatch) {
+      const [, reqId, decision] = approveMatch;
+      const result = await dashboardResolveApproval(
+        reqId,
+        decision === "approve" ? "approved" : "rejected"
+      );
+      if (!result) {
+        error(res, "Approval not found or already resolved", 404);
+        return;
+      }
+      json(res, result);
+      return;
+    }
   }
 
   // 404

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import type { DiscoveryMode, TrustTier } from "./a2a/types.js";
 
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: "claude-sonnet-4-5-20250929",
@@ -30,7 +31,16 @@ export const config = {
     name: "Bob",
     maxToolRounds: 20,
   },
-} as const;
+  a2a: {
+    enabled: !!process.env.A2A_ENABLED,
+    discoveryMode: (process.env.A2A_DISCOVERY_MODE ?? "handshake") as DiscoveryMode,
+    publicUrl: process.env.A2A_PUBLIC_URL ?? "",
+    agentName: process.env.A2A_AGENT_NAME ?? (process.env.OWNER_NAME ? `${process.env.OWNER_NAME}'s Bob` : "Bob"),
+    defaultTrustTier: (process.env.A2A_DEFAULT_TRUST ?? "manual") as TrustTier,
+    approvalTimeoutMin: Number(process.env.A2A_APPROVAL_TIMEOUT_MIN) || 30,
+    maxRequestBodyBytes: 1_048_576, // 1MB
+  },
+};
 
 export function validateConfig(): void {
   if (!config.llm.apiKey) {
@@ -50,5 +60,12 @@ export function validateConfig(): void {
   if (!config.dashboard.apiToken) {
     console.log("WARNING: No BOB_API_TOKEN set — dashboard API is unauthenticated!");
     console.log("Set BOB_API_TOKEN in .env to secure the dashboard.\n");
+  }
+  if (config.a2a.enabled) {
+    if (!config.a2a.publicUrl) {
+      console.log("WARNING: A2A enabled but no A2A_PUBLIC_URL set — other Bobs won't know how to reach you.");
+      console.log("Set A2A_PUBLIC_URL in .env (e.g. http://192.168.1.50:3000).\n");
+    }
+    console.log(`A2A: ${config.a2a.discoveryMode} mode, agent name: "${config.a2a.agentName}"`);
   }
 }
