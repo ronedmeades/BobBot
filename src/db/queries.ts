@@ -72,6 +72,49 @@ export interface TaskRow {
   escalate_after_min: number | null;
 }
 
+export interface ExpenseRow {
+  id: string;
+  amount: number;
+  currency: string;
+  category: string;
+  description: string;
+  date: string;
+  vendor: string | null;
+  receipt_path: string | null;
+  tags: string | null;
+  created_at: string;
+}
+
+export interface ContactRow {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  role: string | null;
+  relationship: string | null;
+  address: string | null;
+  notes: string | null;
+  tags: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarEventRow {
+  id: string;
+  title: string;
+  description: string | null;
+  date: string;
+  end_date: string | null;
+  location: string | null;
+  category: string | null;
+  recurring_pattern: string | null;
+  reminder_days: number;
+  completed: number;
+  last_reminded: string | null;
+  created_at: string;
+}
+
 export interface TaskStepRow {
   id: number;
   task_id: string;

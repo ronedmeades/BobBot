@@ -1,16 +1,16 @@
 /**
  * One-time JSON → SQLite Data Import
  *
- * Reads existing conversation history from memory/user-*.json files
- * and imports them into the SQLite conversations table.
- * Only runs once — tracks completion via metadata table.
+ * Reads existing data from memory/*.json files and imports into SQLite tables.
+ * Only runs once per entity — tracks completion via metadata table.
  */
 
 import { resolve } from "node:path";
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { getDb, isDbAvailable } from "./database.js";
 import { getMetadata, setMetadata } from "./queries.js";
+import type { Expense, Contact, CalendarEvent } from "./stores.js";
 
 const MEMORY_DIR = resolve("memory");
 
@@ -78,5 +78,132 @@ export async function importExistingData(): Promise<void> {
     }
   } catch {
     // Memory directory might not exist yet — that's fine
+  }
+}
+
+// ─── Phase 3: Expenses, Contacts, Calendar ──────────────────────────
+
+/**
+ * Import existing structured data (expenses, contacts, calendar) from JSON into SQLite.
+ * Each entity has its own metadata flag — only imports once.
+ */
+export async function importPhase3Data(): Promise<void> {
+  if (!isDbAvailable()) return;
+
+  await importExpenses();
+  await importContacts();
+  await importCalendarEvents();
+}
+
+async function importExpenses(): Promise<void> {
+  if (getMetadata("expenses_imported") === "true") return;
+
+  const db = getDb()!;
+  try {
+    const raw = await readFile(resolve(MEMORY_DIR, "expenses.json"), "utf-8");
+    const store = JSON.parse(raw) as { expenses?: Expense[] };
+    const expenses = store.expenses ?? [];
+
+    if (expenses.length === 0) {
+      setMetadata("expenses_imported", "true");
+      return;
+    }
+
+    const stmt = db.prepare(`
+      INSERT OR IGNORE INTO expenses (id, amount, currency, category, description, date, vendor, receipt_path, tags, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    db.transaction(() => {
+      for (const e of expenses) {
+        stmt.run(
+          e.id, e.amount, e.currency ?? "USD", e.category ?? "other",
+          e.description, e.date, e.vendor ?? null, e.receipt_path ?? null,
+          e.tags ? JSON.stringify(e.tags) : null, e.created_at,
+        );
+      }
+    })();
+
+    setMetadata("expenses_imported", "true");
+    console.log(`[db] Imported ${expenses.length} expenses from JSON`);
+  } catch {
+    // File doesn't exist or malformed — that's fine
+    setMetadata("expenses_imported", "true");
+  }
+}
+
+async function importContacts(): Promise<void> {
+  if (getMetadata("contacts_imported") === "true") return;
+
+  const db = getDb()!;
+  try {
+    const raw = await readFile(resolve(MEMORY_DIR, "contacts.json"), "utf-8");
+    const store = JSON.parse(raw) as { contacts?: Contact[] };
+    const contacts = store.contacts ?? [];
+
+    if (contacts.length === 0) {
+      setMetadata("contacts_imported", "true");
+      return;
+    }
+
+    const stmt = db.prepare(`
+      INSERT OR IGNORE INTO contacts (id, name, email, phone, company, role, relationship, address, notes, tags, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    db.transaction(() => {
+      for (const c of contacts) {
+        stmt.run(
+          c.id, c.name, c.email ?? null, c.phone ?? null,
+          c.company ?? null, c.role ?? null, c.relationship ?? null,
+          c.address ?? null, c.notes ?? null,
+          c.tags ? JSON.stringify(c.tags) : null,
+          c.created_at, c.updated_at,
+        );
+      }
+    })();
+
+    setMetadata("contacts_imported", "true");
+    console.log(`[db] Imported ${contacts.length} contacts from JSON`);
+  } catch {
+    setMetadata("contacts_imported", "true");
+  }
+}
+
+async function importCalendarEvents(): Promise<void> {
+  if (getMetadata("calendar_imported") === "true") return;
+
+  const db = getDb()!;
+  try {
+    const raw = await readFile(resolve(MEMORY_DIR, "calendar.json"), "utf-8");
+    const store = JSON.parse(raw) as { events?: CalendarEvent[] };
+    const events = store.events ?? [];
+
+    if (events.length === 0) {
+      setMetadata("calendar_imported", "true");
+      return;
+    }
+
+    const stmt = db.prepare(`
+      INSERT OR IGNORE INTO calendar_events (id, title, description, date, end_date, location, category, recurring_pattern, reminder_days, completed, last_reminded, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    db.transaction(() => {
+      for (const e of events) {
+        stmt.run(
+          e.id, e.title, e.description ?? null,
+          e.date, e.end_date ?? null, e.location ?? null,
+          e.category ?? null, e.recurring?.pattern ?? null,
+          e.reminder_days ?? 3, e.completed ? 1 : 0,
+          e.last_reminded ?? null, e.created_at,
+        );
+      }
+    })();
+
+    setMetadata("calendar_imported", "true");
+    console.log(`[db] Imported ${events.length} calendar events from JSON`);
+  } catch {
+    setMetadata("calendar_imported", "true");
   }
 }

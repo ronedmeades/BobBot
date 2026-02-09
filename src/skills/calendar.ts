@@ -1,6 +1,14 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { resolve, join } from "node:path";
 import type { ToolDefinition } from "../providers/types.js";
+import type { CalendarEvent } from "../db/stores.js";
+import {
+  storeInsertCalendarEvent,
+  storeGetCalendarEventById,
+  storeGetCalendarEvents,
+  storeGetAllCalendarEvents,
+  storeUpdateCalendarEvent,
+  storeDeleteCalendarEvent,
+  storeGetRemindableEvents,
+} from "../db/stores.js";
 
 interface ToolResult {
   success: boolean;
@@ -8,59 +16,12 @@ interface ToolResult {
 }
 
 // ---------------------------------------------------------------------------
-// Types
+// Helpers
 // ---------------------------------------------------------------------------
-
-interface CalendarEvent {
-  id: string;
-  title: string;
-  description?: string;
-  date: string;
-  end_date?: string;
-  location?: string;
-  category?: string;
-  recurring?: {
-    pattern: "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
-  };
-  reminder_days: number;
-  completed?: boolean;
-  last_reminded?: string;
-  created_at: string;
-}
-
-interface CalendarFile {
-  version: number;
-  events: CalendarEvent[];
-}
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
-const MEMORY_DIR = resolve("memory");
-const CALENDAR_FILE = join(MEMORY_DIR, "calendar.json");
-
-async function loadCalendar(): Promise<CalendarFile> {
-  try {
-    const raw = await readFile(CALENDAR_FILE, "utf-8");
-    return JSON.parse(raw) as CalendarFile;
-  } catch {
-    return { version: 1, events: [] };
-  }
-}
-
-async function saveCalendar(data: CalendarFile): Promise<void> {
-  await mkdir(MEMORY_DIR, { recursive: true });
-  await writeFile(CALENDAR_FILE, JSON.stringify(data, null, 2), "utf-8");
-}
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function formatEventDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString("en-US", {
@@ -266,8 +227,6 @@ export async function handleAddEvent(
     return { success: false, output: `Invalid date: "${dateStr}". Use ISO 8601 format (e.g. 2026-04-15).` };
   }
 
-  const data = await loadCalendar();
-
   const event: CalendarEvent = {
     id: generateId(),
     title,
@@ -287,8 +246,7 @@ export async function handleAddEvent(
     event.recurring = input.recurring as { pattern: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" };
   }
 
-  data.events.push(event);
-  await saveCalendar(data);
+  await storeInsertCalendarEvent(event);
 
   const recurStr = event.recurring ? ` (recurring: ${event.recurring.pattern})` : "";
   const days = daysUntil(event.date);
@@ -306,35 +264,28 @@ export async function handleAddEvent(
 export async function handleListEvents(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const data = await loadCalendar();
   const now = new Date();
   const category = input.category as string | undefined;
   const includeCompleted = (input.include_completed as boolean) ?? false;
   const includePast = (input.include_past as boolean) ?? false;
 
-  const fromDate = input.from ? new Date(input.from as string) : now;
-  const toDate = input.to
-    ? new Date(input.to as string)
-    : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const fromStr = input.from
+    ? new Date(input.from as string).toISOString()
+    : (includePast ? undefined : now.toISOString());
+  const toStr = input.to
+    ? new Date(input.to as string).toISOString()
+    : new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  let filtered = data.events;
-
-  if (!includeCompleted) {
-    filtered = filtered.filter((e) => !e.completed);
-  }
-  if (!includePast) {
-    filtered = filtered.filter((e) => new Date(e.date) >= fromDate);
-  }
-  filtered = filtered.filter((e) => new Date(e.date) <= toDate);
-  if (category) {
-    filtered = filtered.filter((e) => e.category === category);
-  }
-
-  // Sort by date ascending
-  filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const filtered = await storeGetCalendarEvents({
+    from: fromStr,
+    to: toStr,
+    category,
+    includeCompleted,
+  });
 
   if (filtered.length === 0) {
-    const total = data.events.length;
+    const allEvents = await storeGetAllCalendarEvents();
+    const total = allEvents.length;
     return {
       success: true,
       output: total > 0
@@ -369,49 +320,49 @@ export async function handleUpdateEvent(
   const id = input.id as string;
   if (!id) return { success: false, output: "Event ID is required." };
 
-  const data = await loadCalendar();
-  const event = data.events.find((e) => e.id === id);
+  const event = await storeGetCalendarEventById(id);
   if (!event) return { success: false, output: `No event found with ID "${id}".` };
 
+  const fields: Partial<CalendarEvent> = {};
   const updates: string[] = [];
 
   if (input.title !== undefined) {
-    event.title = input.title as string;
+    fields.title = input.title as string;
     updates.push("title");
   }
   if (input.description !== undefined) {
-    event.description = input.description as string;
+    fields.description = input.description as string;
     updates.push("description");
   }
   if (input.date !== undefined) {
     const parsed = new Date(input.date as string);
     if (!isNaN(parsed.getTime())) {
-      event.date = parsed.toISOString();
-      event.last_reminded = undefined; // Reset reminder on date change
+      fields.date = parsed.toISOString();
+      fields.last_reminded = undefined; // Reset reminder on date change
       updates.push("date");
     }
   }
   if (input.end_date !== undefined) {
     const parsed = new Date(input.end_date as string);
     if (!isNaN(parsed.getTime())) {
-      event.end_date = parsed.toISOString();
+      fields.end_date = parsed.toISOString();
       updates.push("end_date");
     }
   }
   if (input.location !== undefined) {
-    event.location = input.location as string;
+    fields.location = input.location as string;
     updates.push("location");
   }
   if (input.category !== undefined) {
-    event.category = input.category as string;
+    fields.category = input.category as string;
     updates.push("category");
   }
   if (input.recurring !== undefined) {
-    event.recurring = input.recurring as { pattern: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" } | undefined;
+    fields.recurring = input.recurring as { pattern: "daily" | "weekly" | "monthly" | "quarterly" | "yearly" } | undefined;
     updates.push("recurring");
   }
   if (input.reminder_days !== undefined) {
-    event.reminder_days = input.reminder_days as number;
+    fields.reminder_days = input.reminder_days as number;
     updates.push("reminder_days");
   }
 
@@ -419,10 +370,11 @@ export async function handleUpdateEvent(
     return { success: true, output: "No changes provided." };
   }
 
-  await saveCalendar(data);
+  const updated = await storeUpdateCalendarEvent(id, fields);
+  const title = updated ? updated.title : event.title;
   return {
     success: true,
-    output: `Updated event "${event.title}" — changed: ${updates.join(", ")}`,
+    output: `Updated event "${title}" — changed: ${updates.join(", ")}`,
   };
 }
 
@@ -432,12 +384,8 @@ export async function handleRemoveEvent(
   const id = input.id as string;
   if (!id) return { success: false, output: "Event ID is required." };
 
-  const data = await loadCalendar();
-  const index = data.events.findIndex((e) => e.id === id);
-  if (index === -1) return { success: false, output: `No event found with ID "${id}".` };
-
-  const removed = data.events.splice(index, 1)[0];
-  await saveCalendar(data);
+  const removed = await storeDeleteCalendarEvent(id);
+  if (!removed) return { success: false, output: `No event found with ID "${id}".` };
 
   return {
     success: true,
@@ -451,29 +399,29 @@ export async function handleCompleteEvent(
   const id = input.id as string;
   if (!id) return { success: false, output: "Event ID is required." };
 
-  const data = await loadCalendar();
-  const event = data.events.find((e) => e.id === id);
+  const event = await storeGetCalendarEventById(id);
   if (!event) return { success: false, output: `No event found with ID "${id}".` };
 
   if (event.recurring) {
     // Advance to next occurrence
     const oldDate = event.date;
-    event.date = advanceRecurringDate(event.date, event.recurring.pattern);
-    event.last_reminded = undefined;
-    event.completed = false;
-    await saveCalendar(data);
+    const newDate = advanceRecurringDate(event.date, event.recurring.pattern);
+    await storeUpdateCalendarEvent(id, {
+      date: newDate,
+      last_reminded: undefined,
+      completed: false,
+    });
 
     return {
       success: true,
       output:
         `Completed "${event.title}" for ${formatEventDate(oldDate)}.\n` +
-        `Next occurrence: ${formatEventDate(event.date)} (${event.recurring.pattern})`,
+        `Next occurrence: ${formatEventDate(newDate)} (${event.recurring.pattern})`,
     };
   }
 
   // Non-recurring: mark completed
-  event.completed = true;
-  await saveCalendar(data);
+  await storeUpdateCalendarEvent(id, { completed: true });
 
   return {
     success: true,
@@ -491,29 +439,13 @@ export async function handleCompleteEvent(
  * and sends the results via Telegram.
  */
 export async function checkCalendarReminders(): Promise<string[]> {
-  const data = await loadCalendar();
   const now = new Date();
+  const events = await storeGetRemindableEvents(now);
   const reminders: string[] = [];
-  let modified = false;
 
-  for (const event of data.events) {
-    if (event.completed) continue;
-
+  for (const event of events) {
     const eventDate = new Date(event.date);
     const days = (eventDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000);
-
-    // Skip events more than 1 day past
-    if (days < -1) continue;
-
-    // Skip events outside the reminder window
-    if (days > event.reminder_days) continue;
-
-    // Check if already reminded within 24 hours
-    if (event.last_reminded) {
-      const lastReminded = new Date(event.last_reminded);
-      const hoursSince = (now.getTime() - lastReminded.getTime()) / (60 * 60 * 1000);
-      if (hoursSince < 24) continue;
-    }
 
     // Build reminder message
     const daysStr = days <= 0 ? "TODAY" : days < 1 ? "TOMORROW" : `in ${Math.ceil(days)} days`;
@@ -529,12 +461,7 @@ export async function checkCalendarReminders(): Promise<string[]> {
     );
 
     // Mark as reminded
-    event.last_reminded = now.toISOString();
-    modified = true;
-  }
-
-  if (modified) {
-    await saveCalendar(data);
+    await storeUpdateCalendarEvent(event.id, { last_reminded: now.toISOString() });
   }
 
   return reminders;

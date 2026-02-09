@@ -1,57 +1,30 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "../providers/types.js";
+import type { Contact } from "../db/stores.js";
+import {
+  storeInsertContact,
+  storeGetContactById,
+  storeGetAllContacts,
+  storeGetContacts,
+  storeUpdateContact,
+  storeDeleteContact,
+  storeReplaceAllContacts,
+} from "../db/stores.js";
+
+// Re-export Contact type and persistence wrappers for gmail.ts and invoices.ts
+export type { Contact } from "../db/stores.js";
+
+export async function loadContacts(): Promise<Contact[]> {
+  return storeGetAllContacts();
+}
+
+export async function saveContacts(contacts: Contact[]): Promise<void> {
+  return storeReplaceAllContacts(contacts);
+}
 
 interface ToolResult {
   success: boolean;
   output: string;
-}
-
-// ---------------------------------------------------------------------------
-// Data model
-// ---------------------------------------------------------------------------
-
-export interface Contact {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  role?: string;
-  relationship?: string;
-  address?: string;
-  notes?: string;
-  tags?: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-interface ContactStore {
-  version: number;
-  contacts: Contact[];
-}
-
-const CONTACTS_PATH = resolve("memory/contacts.json");
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
-export async function loadContacts(): Promise<Contact[]> {
-  try {
-    const raw = await readFile(CONTACTS_PATH, "utf-8");
-    const store = JSON.parse(raw) as ContactStore;
-    return store.contacts ?? [];
-  } catch {
-    return [];
-  }
-}
-
-export async function saveContacts(contacts: Contact[]): Promise<void> {
-  const store: ContactStore = { version: 1, contacts };
-  await mkdir(dirname(CONTACTS_PATH), { recursive: true });
-  await writeFile(CONTACTS_PATH, JSON.stringify(store, null, 2), "utf-8");
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +168,6 @@ function formatContact(c: Contact, detailed = false): string {
 export async function handleAddContact(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const contacts = await loadContacts();
   const now = new Date().toISOString();
 
   const contact: Contact = {
@@ -213,8 +185,7 @@ export async function handleAddContact(
     updated_at: now,
   };
 
-  contacts.push(contact);
-  await saveContacts(contacts);
+  await storeInsertContact(contact);
 
   return {
     success: true,
@@ -225,23 +196,17 @@ export async function handleAddContact(
 export async function handleSearchContacts(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const contacts = await loadContacts();
   const query = (input.query as string).toLowerCase();
   const tagFilter = input.tag as string | undefined;
   const relFilter = input.relationship as string | undefined;
 
+  // Get candidates from store (filtered by tag/relationship if given)
+  const candidates = await storeGetContacts({ tag: tagFilter, relationship: relFilter, limit: 10000 });
+
+  // Apply fuzzy scoring in JS (same algorithm as before)
   const terms = query.split(/\s+/).filter(Boolean);
 
-  const scored = contacts
-    .filter((c) => {
-      if (tagFilter && (!c.tags || !c.tags.some((t) => t.toLowerCase() === tagFilter.toLowerCase()))) {
-        return false;
-      }
-      if (relFilter && c.relationship?.toLowerCase() !== relFilter.toLowerCase()) {
-        return false;
-      }
-      return true;
-    })
+  const scored = candidates
     .map((c) => {
       const searchable = [
         c.name, c.email, c.phone, c.company, c.role,
@@ -276,8 +241,7 @@ export async function handleSearchContacts(
 export async function handleGetContact(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const contacts = await loadContacts();
-  const contact = contacts.find((c) => c.id === input.id);
+  const contact = await storeGetContactById(input.id as string);
   if (!contact) {
     return { success: false, output: `Contact not found: ${input.id}` };
   }
@@ -287,70 +251,52 @@ export async function handleGetContact(
 export async function handleUpdateContact(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const contacts = await loadContacts();
-  const idx = contacts.findIndex((c) => c.id === input.id);
-  if (idx === -1) {
-    return { success: false, output: `Contact not found: ${input.id}` };
-  }
-
-  const contact = contacts[idx]!;
+  const id = input.id as string;
+  const fields: Partial<Contact> = {};
   const updatable = ["name", "email", "phone", "company", "role", "relationship", "address", "notes", "tags"];
   for (const key of updatable) {
     if (input[key] !== undefined) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (contact as any)[key] = input[key];
+      (fields as Record<string, unknown>)[key] = input[key];
     }
   }
-  contact.updated_at = new Date().toISOString();
+  fields.updated_at = new Date().toISOString();
 
-  await saveContacts(contacts);
+  const contact = await storeUpdateContact(id, fields);
+  if (!contact) {
+    return { success: false, output: `Contact not found: ${id}` };
+  }
   return { success: true, output: `Updated: ${formatContact(contact)}` };
 }
 
 export async function handleDeleteContact(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const contacts = await loadContacts();
-  const idx = contacts.findIndex((c) => c.id === input.id);
-  if (idx === -1) {
+  const removed = await storeDeleteContact(input.id as string);
+  if (!removed) {
     return { success: false, output: `Contact not found: ${input.id}` };
   }
-
-  const [removed] = contacts.splice(idx, 1);
-  await saveContacts(contacts);
-  return { success: true, output: `Deleted contact: ${removed!.name}` };
+  return { success: true, output: `Deleted contact: ${removed.name}` };
 }
 
 export async function handleListContacts(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const contacts = await loadContacts();
   const tagFilter = input.tag as string | undefined;
   const relFilter = input.relationship as string | undefined;
   const limit = (input.limit as number) ?? 50;
 
-  let filtered = contacts;
-  if (tagFilter) {
-    filtered = filtered.filter(
-      (c) => c.tags && c.tags.some((t) => t.toLowerCase() === tagFilter.toLowerCase())
-    );
-  }
-  if (relFilter) {
-    filtered = filtered.filter(
-      (c) => c.relationship?.toLowerCase() === relFilter.toLowerCase()
-    );
-  }
+  const filtered = await storeGetContacts({ tag: tagFilter, relationship: relFilter, limit });
 
   if (filtered.length === 0) {
     return { success: true, output: "No contacts found." };
   }
 
-  const sorted = filtered.sort((a, b) => a.name.localeCompare(b.name));
-  const lines = sorted.slice(0, limit).map((c) => formatContact(c));
-  const countNote = sorted.length > limit ? `\n\n(showing ${limit} of ${sorted.length})` : "";
+  const lines = filtered.map((c) => formatContact(c));
+  const allContacts = await storeGetContacts({ tag: tagFilter, relationship: relFilter, limit: 10000 });
+  const countNote = allContacts.length > limit ? `\n\n(showing ${limit} of ${allContacts.length})` : "";
 
   return {
     success: true,
-    output: `${sorted.length} contact(s):\n\n${lines.join("\n")}${countNote}`,
+    output: `${allContacts.length} contact(s):\n\n${lines.join("\n")}${countNote}`,
   };
 }

@@ -108,6 +108,66 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    description: "Structured data: expenses, contacts, calendar_events tables",
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE expenses (
+          id TEXT PRIMARY KEY,
+          amount REAL NOT NULL,
+          currency TEXT NOT NULL DEFAULT 'USD',
+          category TEXT NOT NULL DEFAULT 'other',
+          description TEXT NOT NULL,
+          date TEXT NOT NULL,
+          vendor TEXT,
+          receipt_path TEXT,
+          tags TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_expense_date ON expenses(date);
+        CREATE INDEX idx_expense_category ON expenses(category);
+        CREATE INDEX idx_expense_vendor ON expenses(vendor);
+
+        CREATE TABLE contacts (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          email TEXT,
+          phone TEXT,
+          company TEXT,
+          role TEXT,
+          relationship TEXT,
+          address TEXT,
+          notes TEXT,
+          tags TEXT,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_contact_name ON contacts(name);
+        CREATE INDEX idx_contact_email ON contacts(email);
+        CREATE INDEX idx_contact_company ON contacts(company);
+        CREATE INDEX idx_contact_relationship ON contacts(relationship);
+
+        CREATE TABLE calendar_events (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          description TEXT,
+          date TEXT NOT NULL,
+          end_date TEXT,
+          location TEXT,
+          category TEXT,
+          recurring_pattern TEXT,
+          reminder_days INTEGER NOT NULL DEFAULT 3,
+          completed INTEGER NOT NULL DEFAULT 0,
+          last_reminded TEXT,
+          created_at TEXT NOT NULL
+        );
+        CREATE INDEX idx_cal_date ON calendar_events(date);
+        CREATE INDEX idx_cal_completed ON calendar_events(completed);
+        CREATE INDEX idx_cal_category ON calendar_events(category);
+      `);
+    },
+  },
 ];
 
 /**

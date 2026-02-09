@@ -1,7 +1,14 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ToolDefinition } from "../providers/types.js";
+import type { Expense } from "../db/stores.js";
+import {
+  storeInsertExpense,
+  storeGetExpenses,
+  storeDeleteExpense,
+  storeGetExpenseSummary,
+} from "../db/stores.js";
 
 interface ToolResult {
   success: boolean;
@@ -9,53 +16,13 @@ interface ToolResult {
 }
 
 // ---------------------------------------------------------------------------
-// Data model
+// Constants
 // ---------------------------------------------------------------------------
-
-interface Expense {
-  id: string;
-  amount: number;
-  currency: string;
-  category: string;
-  description: string;
-  date: string;
-  vendor?: string;
-  receipt_path?: string;
-  tags?: string[];
-  created_at: string;
-}
-
-interface ExpenseStore {
-  version: number;
-  expenses: Expense[];
-}
-
-const EXPENSES_PATH = resolve("memory/expenses.json");
 
 const CATEGORIES = [
   "food", "transport", "office", "software", "services",
   "tax", "utilities", "travel", "entertainment", "medical", "other",
 ];
-
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
-async function loadExpenses(): Promise<Expense[]> {
-  try {
-    const raw = await readFile(EXPENSES_PATH, "utf-8");
-    const store = JSON.parse(raw) as ExpenseStore;
-    return store.expenses ?? [];
-  } catch {
-    return [];
-  }
-}
-
-async function saveExpenses(expenses: Expense[]): Promise<void> {
-  const store: ExpenseStore = { version: 1, expenses };
-  await mkdir(dirname(EXPENSES_PATH), { recursive: true });
-  await writeFile(EXPENSES_PATH, JSON.stringify(store, null, 2), "utf-8");
-}
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -166,27 +133,33 @@ function getDateRange(
   period: string,
   year: number,
   month: number
-): { from: Date; to: Date; label: string } {
+): { from: string; to: string; label: string } {
   if (period === "year") {
     return {
-      from: new Date(year, 0, 1),
-      to: new Date(year + 1, 0, 1),
+      from: `${year}-01-01`,
+      to: `${year + 1}-01-01`,
       label: `${year}`,
     };
   }
   if (period === "quarter") {
     const q = Math.ceil(month / 3);
-    const qStart = (q - 1) * 3;
+    const qStart = (q - 1) * 3 + 1;
+    const qEnd = qStart + 3;
+    const toYear = qEnd > 12 ? year + 1 : year;
+    const toMonth = qEnd > 12 ? qEnd - 12 : qEnd;
     return {
-      from: new Date(year, qStart, 1),
-      to: new Date(year, qStart + 3, 1),
+      from: `${year}-${String(qStart).padStart(2, "0")}-01`,
+      to: `${toYear}-${String(toMonth).padStart(2, "0")}-01`,
       label: `Q${q} ${year}`,
     };
   }
   // month
+  const nextMonth = month + 1;
+  const toYear = nextMonth > 12 ? year + 1 : year;
+  const toMonth = nextMonth > 12 ? 1 : nextMonth;
   return {
-    from: new Date(year, month - 1, 1),
-    to: new Date(year, month, 1),
+    from: `${year}-${String(month).padStart(2, "0")}-01`,
+    to: `${toYear}-${String(toMonth).padStart(2, "0")}-01`,
     label: new Date(year, month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
   };
 }
@@ -198,8 +171,6 @@ function getDateRange(
 export async function handleAddExpense(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const expenses = await loadExpenses();
-
   const expense: Expense = {
     id: randomUUID().slice(0, 8),
     amount: input.amount as number,
@@ -213,8 +184,7 @@ export async function handleAddExpense(
     created_at: new Date().toISOString(),
   };
 
-  expenses.push(expense);
-  await saveExpenses(expenses);
+  await storeInsertExpense(expense);
 
   return {
     success: true,
@@ -225,84 +195,59 @@ export async function handleAddExpense(
 export async function handleListExpenses(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const expenses = await loadExpenses();
-  const from = input.from ? new Date(input.from as string) : null;
-  const to = input.to ? new Date(input.to as string) : null;
+  const from = input.from as string | undefined;
+  const to = input.to as string | undefined;
   const category = input.category as string | undefined;
   const limit = (input.limit as number) ?? 30;
 
-  let filtered = expenses;
-  if (from) filtered = filtered.filter((e) => new Date(e.date) >= from);
-  if (to) filtered = filtered.filter((e) => new Date(e.date) <= to);
-  if (category) filtered = filtered.filter((e) => e.category === category);
-
-  filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const filtered = await storeGetExpenses({ from, to, category, limit });
 
   if (filtered.length === 0) {
     return { success: true, output: "No expenses found." };
   }
 
-  const lines = filtered.slice(0, limit).map((e) => {
+  const lines = filtered.map((e) => {
     const vendor = e.vendor ? ` @ ${e.vendor}` : "";
     return `${e.date}  ${formatAmount(e.amount, e.currency).padEnd(12)} ${e.category.padEnd(14)} ${e.description}${vendor}  [${e.id}]`;
   });
 
   const total = filtered.reduce((sum, e) => sum + e.amount, 0);
-  const countNote = filtered.length > limit ? ` (showing ${limit} of ${filtered.length})` : "";
+  const allExpenses = await storeGetExpenses({ from, to, category, limit: 10000 });
+  const countNote = allExpenses.length > limit ? ` (showing ${limit} of ${allExpenses.length})` : "";
 
   return {
     success: true,
-    output: `${filtered.length} expense(s)${countNote}:\n\n${lines.join("\n")}\n\nTotal: ${formatAmount(total, filtered[0]?.currency ?? "USD")}`,
+    output: `${allExpenses.length} expense(s)${countNote}:\n\n${lines.join("\n")}\n\nTotal: ${formatAmount(total, filtered[0]?.currency ?? "USD")}`,
   };
 }
 
 export async function handleGetExpenseSummary(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const expenses = await loadExpenses();
   const now = new Date();
   const period = (input.period as string) ?? "month";
   const year = (input.year as number) ?? now.getFullYear();
   const month = (input.month as number) ?? now.getMonth() + 1;
 
   const { from, to, label } = getDateRange(period, year, month);
+  const summary = await storeGetExpenseSummary(from, to);
 
-  const filtered = expenses.filter((e) => {
-    const d = new Date(e.date);
-    return d >= from && d < to;
-  });
-
-  if (filtered.length === 0) {
+  if (summary.count === 0) {
     return { success: true, output: `No expenses for ${label}.` };
   }
 
-  // Category breakdown
-  const byCat: Record<string, number> = {};
-  const byVendor: Record<string, number> = {};
-  let total = 0;
-
-  for (const e of filtered) {
-    byCat[e.category] = (byCat[e.category] ?? 0) + e.amount;
-    if (e.vendor) {
-      byVendor[e.vendor] = (byVendor[e.vendor] ?? 0) + e.amount;
-    }
-    total += e.amount;
-  }
-
-  const currency = filtered[0]?.currency ?? "USD";
-
-  const catLines = Object.entries(byCat)
+  const catLines = Object.entries(summary.byCategory)
     .sort(([, a], [, b]) => b - a)
-    .map(([cat, amt]) => `  ${cat.padEnd(14)} ${formatAmount(amt, currency).padStart(12)}  (${Math.round((amt / total) * 100)}%)`);
+    .map(([cat, amt]) => `  ${cat.padEnd(14)} ${formatAmount(amt, summary.currency).padStart(12)}  (${Math.round((amt / summary.total) * 100)}%)`);
 
-  const topVendors = Object.entries(byVendor)
+  const topVendors = Object.entries(summary.byVendor)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 5)
-    .map(([vendor, amt]) => `  ${vendor.padEnd(20)} ${formatAmount(amt, currency).padStart(12)}`);
+    .map(([vendor, amt]) => `  ${vendor.padEnd(20)} ${formatAmount(amt, summary.currency).padStart(12)}`);
 
   let output = `Expense Summary — ${label}\n`;
   output += `${"─".repeat(40)}\n`;
-  output += `Total: ${formatAmount(total, currency)} (${filtered.length} expenses)\n\n`;
+  output += `Total: ${formatAmount(summary.total, summary.currency)} (${summary.count} expenses)\n\n`;
   output += `By Category:\n${catLines.join("\n")}`;
 
   if (topVendors.length > 0) {
@@ -315,33 +260,28 @@ export async function handleGetExpenseSummary(
 export async function handleDeleteExpense(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const expenses = await loadExpenses();
-  const idx = expenses.findIndex((e) => e.id === input.id);
-  if (idx === -1) {
+  const removed = await storeDeleteExpense(input.id as string);
+  if (!removed) {
     return { success: false, output: `Expense not found: ${input.id}` };
   }
 
-  const [removed] = expenses.splice(idx, 1);
-  await saveExpenses(expenses);
   return {
     success: true,
-    output: `Deleted: ${formatAmount(removed!.amount, removed!.currency)} — ${removed!.description}`,
+    output: `Deleted: ${formatAmount(removed.amount, removed.currency)} — ${removed.description}`,
   };
 }
 
 export async function handleExportExpenses(
   input: Record<string, unknown>
 ): Promise<ToolResult> {
-  const expenses = await loadExpenses();
-  const from = input.from ? new Date(input.from as string) : null;
-  const to = input.to ? new Date(input.to as string) : null;
+  const from = input.from as string | undefined;
+  const to = input.to as string | undefined;
   const format = (input.format as string) ?? "csv";
 
-  let filtered = expenses;
-  if (from) filtered = filtered.filter((e) => new Date(e.date) >= from);
-  if (to) filtered = filtered.filter((e) => new Date(e.date) <= to);
+  let filtered = await storeGetExpenses({ from, to, limit: 10000 });
 
-  filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Sort ascending for export
+  filtered.sort((a, b) => a.date.localeCompare(b.date));
 
   if (filtered.length === 0) {
     return { success: true, output: "No expenses to export." };

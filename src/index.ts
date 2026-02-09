@@ -20,9 +20,10 @@ async function main(): Promise<void> {
   const { initDb } = await import("./db/database.js");
   await initDb();
 
-  // Import existing JSON history into SQLite on first run
-  const { importExistingData } = await import("./db/import.js");
+  // Import existing JSON data into SQLite on first run
+  const { importExistingData, importPhase3Data } = await import("./db/import.js");
   await importExistingData();
+  await importPhase3Data();
 
   await initTools();
 
