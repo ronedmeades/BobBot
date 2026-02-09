@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, InputFile } from "grammy";
 import { config } from "../config.js";
 import { runAgent } from "../agent/core.js";
 import { submitTask, setNotifier } from "../tasks/runner.js";
@@ -181,6 +181,71 @@ export function createBot(): Bot {
       clearInterval(typingInterval);
       console.error("Agent error:", err);
       await ctx.reply("Something went wrong on my end. Give me a sec and try again.");
+    }
+  });
+
+  // Voice messages — transcribe, process, reply with text + voice
+  bot.on("message:voice", async (ctx) => {
+    const userId = String(ctx.from?.id ?? "unknown");
+    recordUserInteraction(userId);
+
+    // Save chatId (same as text handler)
+    const profile = await memory.loadProfile(userId);
+    if (profile && profile.chatId !== ctx.chat.id) {
+      profile.chatId = ctx.chat.id;
+      await memory.saveProfile(profile);
+    }
+
+    const typingInterval = setInterval(() => {
+      ctx.replyWithChatAction("typing").catch(() => {});
+    }, 4000);
+    await ctx.replyWithChatAction("typing");
+
+    try {
+      const { transcribeVoice, synthesizeSpeech, isTranscriptionAvailable } =
+        await import("../skills/voice.js");
+
+      if (!isTranscriptionAvailable()) {
+        clearInterval(typingInterval);
+        await ctx.reply(
+          "I can't process voice messages yet — I need an OpenAI API key for transcription. " +
+          "Set OPENAI_API_KEY in .env (or set LLM_PROVIDER=openai to reuse LLM_API_KEY)."
+        );
+        return;
+      }
+
+      // Download voice file from Telegram
+      const file = await ctx.getFile();
+      const url = `https://api.telegram.org/file/bot${config.telegram.botToken}/${file.file_path}`;
+      const resp = await fetch(url);
+      const oggBuffer = Buffer.from(await resp.arrayBuffer());
+
+      // Transcribe
+      const transcript = await transcribeVoice(oggBuffer);
+      console.log(`[voice] Transcribed: "${transcript.slice(0, 100)}..."`);
+
+      // Run through agent (same as text)
+      const response = await runAgent(userId, transcript);
+      clearInterval(typingInterval);
+
+      // Always send text reply
+      const chunks = splitMessage(response.text, 4000);
+      for (const chunk of chunks) {
+        await ctx.reply(chunk);
+      }
+
+      // Also send voice reply (best-effort)
+      try {
+        const voiceBuffer = await synthesizeSpeech(response.text);
+        await ctx.replyWithVoice(new InputFile(voiceBuffer, "response.ogg"));
+      } catch (ttsErr) {
+        console.error("[voice] TTS failed:", ttsErr);
+        // Non-fatal — text reply already sent
+      }
+    } catch (err) {
+      clearInterval(typingInterval);
+      console.error("Voice agent error:", err);
+      await ctx.reply("Had trouble with that voice message. Try again or send text instead.");
     }
   });
 

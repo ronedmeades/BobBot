@@ -87,6 +87,8 @@ Waiting for Telegram messages...
 - **pdf-lib** — PDF form parsing, filling, and invoice generation
 - **exceljs** — Excel/spreadsheet reading
 - **playwright** — Browser automation (Chromium, lazy-launched)
+- **edge-tts** — Text-to-speech via Microsoft Edge (free, no API key)
+- **fluent-ffmpeg** + **ffmpeg-static** — Audio format conversion (MP3→OGG/Opus for Telegram)
 
 ### Runtime
 - **Node.js**: v22+
@@ -189,6 +191,7 @@ bob/
     │   ├── standing-rules.ts    # Persistent marketplace monitoring rules (hourly scheduler)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   ├── home-assistant.ts     # Home Assistant smart home (REST + WebSocket, 15 tools, device monitors)
+    │   ├── voice.ts             # Voice: Whisper STT + edge-tts TTS (Telegram voice messages)
     │   ├── a2a-client.ts        # A2A client tools (discover, send, peers, trust, audit)
     │   ├── mcp-manager.ts       # MCP server management tools (add, remove, list, reconnect, toggle)
     │   ├── analytics.ts         # Search history, tool stats, event log (SQLite-powered)
@@ -766,13 +769,6 @@ pnpm test             # Run tests (vitest)
 
 ## Future Roadmap
 
-### Voice
-- Telegram voice messages via Whisper transcription
-- Text-to-speech for responses
-
-### Smart Home
-- Home Assistant integration
-
 ### Community
 - Discord server for Bob community
 
@@ -780,10 +776,9 @@ pnpm test             # Run tests (vitest)
 
 ## Next Session
 
-- [ ] Smart Home — Home Assistant integration
-- [ ] Voice — Telegram voice messages via Whisper transcription
+- [x] Smart Home — Home Assistant integration (15 tools, REST + WebSocket, device monitors)
+- [x] Voice — Telegram voice messages (Whisper STT + edge-tts TTS)
 - [ ] Discord server for Bob community
-- [ ] Daily tech news digest — automated summary of AI/robotics/tech news
 
 ## Known Issues
 
