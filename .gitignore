@@ -45,6 +45,7 @@ local/
 medical-records-research-summary.txt
 openclaw-research-summary.txt
 openclaw-multi-agent-research.md
+discord-setup.md
 
 # Logs
 *.log
