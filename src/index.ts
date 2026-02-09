@@ -41,6 +41,10 @@ async function main(): Promise<void> {
   await initEscalation();
   await initMarketplaceAdapters();
 
+  // Initialize MCP clients (connects to configured servers)
+  const { initMcpClients } = await import("./mcp/client.js");
+  await initMcpClients();
+
   // Initialize A2A (Agent-to-Agent) if enabled
   if (config.a2a.enabled) {
     const { initPeerRegistry } = await import("./a2a/registry.js");
@@ -69,6 +73,7 @@ async function main(): Promise<void> {
     console.log("\nShutting down Bob...");
     stopWorker();
     stopScheduler();
+    import("./mcp/client.js").then((m) => m.shutdownMcpClients()).catch(() => {});
     stopBot();
     process.exit(0);
   };

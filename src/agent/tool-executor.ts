@@ -197,6 +197,15 @@ import {
   handleA2AAuditLog,
   handleApproveA2ARequest,
 } from "../skills/a2a-client.js";
+import {
+  handleMcpAddServer,
+  handleMcpRemoveServer,
+  handleMcpListServers,
+  handleMcpListTools,
+  handleMcpReconnect,
+  handleMcpToggleServer,
+} from "../skills/mcp-manager.js";
+import { isMcpTool, executeMcpTool } from "../mcp/client.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
 
@@ -558,6 +567,19 @@ export async function executeTool(
         return await handleA2AAuditLog(input);
       case "approve_a2a_request":
         return await handleApproveA2ARequest(input);
+      // MCP management tools
+      case "mcp_add_server":
+        return await handleMcpAddServer(input);
+      case "mcp_remove_server":
+        return await handleMcpRemoveServer(input);
+      case "mcp_list_servers":
+        return await handleMcpListServers();
+      case "mcp_list_tools":
+        return await handleMcpListTools(input);
+      case "mcp_reconnect":
+        return await handleMcpReconnect(input);
+      case "mcp_toggle_server":
+        return await handleMcpToggleServer(input);
       // Tool loading (actual expansion happens in core.ts)
       case "load_tools": {
         const categories = (input.categories as string[]) ?? [];
@@ -570,7 +592,9 @@ export async function executeTool(
         return { success: true, output: msg };
       }
       default: {
-        // Try local skills before giving up
+        // Try MCP tools first (prefixed names like github_create_issue)
+        if (isMcpTool(name)) return await executeMcpTool(name, input);
+        // Then try local skills
         const localResult = await executeLocalTool(name, input, context);
         if (localResult) return localResult;
         return { success: false, output: `Unknown tool: ${name}` };

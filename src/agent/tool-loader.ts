@@ -11,6 +11,7 @@
 
 import type { ToolDefinition } from "../providers/types.js";
 import { getLocalToolDefinitions } from "../skills/local-loader.js";
+import { getMcpToolDefinitions } from "../mcp/client.js";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -284,6 +285,16 @@ export function selectToolsForMessage(
   for (const def of localDefs) {
     if (!existingNames.has(def.name)) {
       filtered.push(def);
+      existingNames.add(def.name);
+    }
+  }
+
+  // Always include MCP tools (user explicitly configured them)
+  const mcpDefs = getMcpToolDefinitions();
+  for (const def of mcpDefs) {
+    if (!existingNames.has(def.name)) {
+      filtered.push(def);
+      existingNames.add(def.name);
     }
   }
 
@@ -334,6 +345,11 @@ export function buildCategorySystemPromptSection(): string {
   const lines = TOOL_CATEGORIES.map(
     (c) => `- ${c.name}: ${c.description} (${c.toolNames.length} tools)`
   );
+  const mcpDefs = getMcpToolDefinitions();
+  if (mcpDefs.length > 0) {
+    lines.push(`\nMCP server tools: ${mcpDefs.length} (always available from connected servers)`);
+  }
+
   return `\n\nTool loading:
 You currently have a subset of your tools loaded. If you need tools from another category, use load_tools to activate them.
 Available categories:

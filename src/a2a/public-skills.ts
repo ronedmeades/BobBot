@@ -14,6 +14,7 @@
 import { toolDefinitions } from "../agent/tools.js";
 import type { ToolDefinition } from "../providers/types.js";
 import type { TrustTier, AgentCardSkill } from "./types.js";
+import { isMcpTool } from "../mcp/client.js";
 
 // ─── BLOCKED: Never exposed externally ──────────────────────────────
 // Filesystem, system, credentials, owner comms, business operations
@@ -136,6 +137,14 @@ const BLOCKED_TOOLS = new Set([
   "organize_files",
   "find_duplicates",
 
+  // MCP management — system level, owner only
+  "mcp_add_server",
+  "mcp_remove_server",
+  "mcp_list_servers",
+  "mcp_list_tools",
+  "mcp_reconnect",
+  "mcp_toggle_server",
+
   // A2A client tools — prevent recursive forwarding
   "discover_agent",
   "send_to_agent",
@@ -206,6 +215,8 @@ export function isPublicTool(name: string, trustTier: TrustTier): boolean {
   if (trustTier === "blocked") return false;
   if (BLOCKED_TOOLS.has(name)) return false;
   if (DATA_TOOLS.has(name) && trustTier !== "trusted") return false;
+  // Block MCP tools — they spawn subprocesses, bypass Bob's sandbox
+  if (isMcpTool(name)) return false;
   return true;
 }
 

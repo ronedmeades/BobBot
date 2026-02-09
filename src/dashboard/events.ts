@@ -22,6 +22,10 @@ export interface BobEventMap {
   "a2a:response": { peerId: string; taskId: string; state: string; costUsd: number };
   "a2a:approval": { requestId: string; peerName: string; description: string; status: string; type: string };
   "a2a:peer": { peerId: string; peerName: string; action: string };
+  "mcp:connect": { server: string; toolCount: number };
+  "mcp:disconnect": { server: string; reason?: string };
+  "mcp:error": { server: string; error: string };
+  "mcp:tools_changed": { server: string; toolCount: number };
 }
 
 const BUFFER_SIZE = 50;
