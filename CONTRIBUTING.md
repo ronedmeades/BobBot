@@ -139,5 +139,5 @@ Want to build something personal that doesn't belong in the public repo? Put it 
 
 ## Questions?
 
-- **Discord**: Join our community server
+- **Discord**: [Join the Bob community](https://discord.gg/de4FNzvZ)
 - **GitHub Issues**: [ronedmeades/BobBot/issues](https://github.com/ronedmeades/BobBot/issues)

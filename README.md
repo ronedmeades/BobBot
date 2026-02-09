@@ -388,7 +388,7 @@ Then try:
 
 Join the Bob community to share tips, get help, and show off what your Bob can do:
 
-- **Discord**: [Coming soon — join the waitlist!](https://github.com/ronedmeades/BobBot/issues)
+- **Discord**: [Join the Bob community](https://discord.gg/de4FNzvZ)
 - **GitHub Issues**: [Report bugs or request features](https://github.com/ronedmeades/BobBot/issues)
 - **GitHub Discussions**: [Ask questions and share ideas](https://github.com/ronedmeades/BobBot/discussions)
 
