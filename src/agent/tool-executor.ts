@@ -205,6 +205,11 @@ import {
   handleMcpReconnect,
   handleMcpToggleServer,
 } from "../skills/mcp-manager.js";
+import {
+  handleSearchHistory,
+  handleGetToolStats,
+  handleGetEventLog,
+} from "../skills/analytics.js";
 import { isMcpTool, executeMcpTool } from "../mcp/client.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
@@ -580,6 +585,13 @@ export async function executeTool(
         return await handleMcpReconnect(input);
       case "mcp_toggle_server":
         return await handleMcpToggleServer(input);
+      // Analytics & history
+      case "search_history":
+        return await handleSearchHistory(input);
+      case "get_tool_stats":
+        return await handleGetToolStats(input);
+      case "get_event_log":
+        return await handleGetEventLog(input);
       // Tool loading (actual expansion happens in core.ts)
       case "load_tools": {
         const categories = (input.categories as string[]) ?? [];

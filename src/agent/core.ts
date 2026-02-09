@@ -290,7 +290,7 @@ async function runAgentInner(
     role: "user",
     content: userMessage,
     timestamp: new Date().toISOString(),
-  });
+  }, source);
 
   if (isDirectChat && !options?.toolDefs) {
     console.log(`[tool-loader] ${activeToolDefs.length} tools selected (of ${toolDefinitions.length} total)`);
@@ -356,7 +356,7 @@ async function runAgentInner(
         role: "assistant",
         content: finalText,
         timestamp: new Date().toISOString(),
-      });
+      }, source);
 
       events.emitEvent("agent:status", { userId, status: "done" });
       events.emitEvent("message:out", { userId, text: finalText });
@@ -382,17 +382,34 @@ async function runAgentInner(
 
         events.emitEvent("tool:call", { tool: toolUse.name, input: toolUse.input, userId });
 
+        const startMs = Date.now();
         const result = await activeToolExecutor(
           toolUse.name,
           toolUse.input as Record<string, unknown>,
           toolContext
         );
+        const durationMs = Date.now() - startMs;
 
         events.emitEvent("tool:result", {
           tool: toolUse.name,
           success: result.success,
           output: result.output.slice(0, 500),
         });
+
+        // Record tool call to SQLite (if available)
+        try {
+          const { insertToolCall } = await import("../db/queries.js");
+          insertToolCall({
+            toolName: toolUse.name,
+            input: toolUse.input,
+            output: result.output,
+            success: result.success,
+            durationMs,
+            userId,
+          });
+        } catch {
+          // SQLite not available
+        }
 
         return {
           type: "tool_result" as const,
@@ -431,7 +448,7 @@ async function runAgentInner(
     role: "assistant",
     content: fallback,
     timestamp: new Date().toISOString(),
-  });
+  }, source);
 
   events.emitEvent("agent:status", { userId, status: "done" });
   events.emitEvent("message:out", { userId, text: fallback });

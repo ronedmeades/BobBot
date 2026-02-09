@@ -30,6 +30,28 @@ export interface BobEventMap {
 
 const BUFFER_SIZE = 50;
 
+// Lazy-loaded SQLite event writer to avoid circular imports at module load time
+let dbInsertEvent: ((type: string, data: Record<string, unknown>) => number | null) | null = null;
+let dbLoadAttempted = false;
+
+function getDbInsertEvent(): typeof dbInsertEvent {
+  if (!dbLoadAttempted) {
+    dbLoadAttempted = true;
+    try {
+      // Synchronous check — if db module is already loaded, grab the function
+      // We schedule an async import that will populate on next tick
+      import("../db/queries.js").then((mod) => {
+        dbInsertEvent = mod.insertEvent;
+      }).catch(() => {
+        // SQLite not available
+      });
+    } catch {
+      // Module not available
+    }
+  }
+  return dbInsertEvent;
+}
+
 class BobEventBus extends EventEmitter {
   private recentEvents: BobEvent[] = [];
 
@@ -43,6 +65,16 @@ class BobEventBus extends EventEmitter {
     this.recentEvents.push(event);
     if (this.recentEvents.length > BUFFER_SIZE) {
       this.recentEvents.shift();
+    }
+
+    // Persist to SQLite (if available)
+    const persist = getDbInsertEvent();
+    if (persist) {
+      try {
+        persist(type, data as Record<string, unknown>);
+      } catch {
+        // SQLite write failed — continue with in-memory only
+      }
     }
 
     this.emit("event", event);

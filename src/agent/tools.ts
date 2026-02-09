@@ -30,6 +30,7 @@ import { envManagerToolDefinitions } from "../skills/env-manager.js";
 import { standingRulesToolDefinitions } from "../skills/standing-rules.js";
 import { a2aClientToolDefinitions } from "../skills/a2a-client.js";
 import { mcpManagerToolDefinitions } from "../skills/mcp-manager.js";
+import { analyticsToolDefinitions } from "../skills/analytics.js";
 import { getMcpToolDefinitions } from "../mcp/client.js";
 import { config } from "../config.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
@@ -275,6 +276,8 @@ const builtinTools: ToolDefinition[] = [
   ...standingRulesToolDefinitions,
   // MCP management tools (always available so Bob can self-configure)
   ...mcpManagerToolDefinitions,
+  // Analytics & history (search conversations, tool stats, event log)
+  ...analyticsToolDefinitions,
   // A2A client tools (only when A2A is enabled)
   ...(config.a2a.enabled ? a2aClientToolDefinitions : []),
 ];

@@ -15,6 +15,15 @@ async function main(): Promise<void> {
 
   validateConfig();
   await memory.init();
+
+  // Initialize SQLite database (before tools, so dual-write is ready)
+  const { initDb } = await import("./db/database.js");
+  await initDb();
+
+  // Import existing JSON history into SQLite on first run
+  const { importExistingData } = await import("./db/import.js");
+  await importExistingData();
+
   await initTools();
 
   // Seed owner's profile if it doesn't exist yet
@@ -74,6 +83,7 @@ async function main(): Promise<void> {
     stopWorker();
     stopScheduler();
     import("./mcp/client.js").then((m) => m.shutdownMcpClients()).catch(() => {});
+    import("./db/database.js").then((m) => m.closeDb()).catch(() => {});
     stopBot();
     process.exit(0);
   };

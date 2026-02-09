@@ -40,7 +40,7 @@ export const memory = {
   },
 
   /** Append a message to a user's conversation history */
-  async appendHistory(userId: string, entry: ConversationEntry): Promise<void> {
+  async appendHistory(userId: string, entry: ConversationEntry, source?: string): Promise<void> {
     const history = await this.loadHistory(userId);
     history.push(entry);
 
@@ -48,6 +48,19 @@ export const memory = {
     const trimmed = history.slice(-100);
     const path = join(MEMORY_DIR, `user-${userId}.json`);
     await writeFile(path, JSON.stringify(trimmed, null, 2), "utf-8");
+
+    // Dual-write to SQLite (if available)
+    try {
+      const { insertConversation } = await import("../db/queries.js");
+      insertConversation({
+        userId,
+        role: entry.role,
+        content: entry.content,
+        source,
+      });
+    } catch {
+      // SQLite not available — JSON-only mode
+    }
   },
 
   /** Save a named note (e.g., task results, API findings) */

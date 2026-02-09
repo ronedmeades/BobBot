@@ -199,6 +199,15 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       "set_peer_trust", "remove_peer", "a2a_audit_log", "approve_a2a_request",
     ],
   },
+  {
+    name: "analytics",
+    description: "Search conversation history, tool usage stats, persistent event log",
+    keywords: [
+      "history", "search history", "stats", "analytics", "when did",
+      "how often", "event log", "tool usage", "most used",
+    ],
+    toolNames: ["search_history", "get_tool_stats", "get_event_log"],
+  },
 ];
 
 // Build a set of valid category names for quick lookup

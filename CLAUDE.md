@@ -70,6 +70,7 @@ Waiting for Telegram messages...
 ### Dependencies
 - **@anthropic-ai/sdk** — Claude API client
 - **@modelcontextprotocol/sdk** — MCP client (stdio + SSE transports)
+- **better-sqlite3** — SQLite database (conversation history, tool analytics, event log)
 - **grammy** — Telegram Bot framework
 - **dotenv** — Environment variable loading
 
@@ -124,7 +125,8 @@ bob/
 │   ├── a2a-audit.json     # A2A interaction audit log
 │   ├── a2a-tasks.json     # A2A protocol task state
 │   ├── a2a-approvals.json # A2A pending approval requests
-│   └── mcp-servers.json   # MCP server configs (persistent, auto-connect on startup)
+│   ├── mcp-servers.json   # MCP server configs (persistent, auto-connect on startup)
+│   └── bob.db             # SQLite database (conversations, tool calls, events)
 └── src/
     ├── index.ts           # Entry point — starts bot + dashboard + scheduler, seeds owner profile
     ├── config.ts          # Loads .env, validates required keys, multi-provider support
@@ -146,6 +148,11 @@ bob/
     │   ├── anthropic.ts   # Anthropic/Claude provider
     │   ├── openai.ts      # OpenAI provider
     │   └── gemini.ts      # Google Gemini provider
+    ├── db/
+    │   ├── database.ts    # SQLite singleton manager (lazy-load, WAL mode, init/close)
+    │   ├── migrations.ts  # Versioned schema migrations via PRAGMA user_version
+    │   ├── queries.ts     # Typed query wrappers (prepared statements, no ORM)
+    │   └── import.ts      # One-time JSON→SQLite migration for existing history
     ├── mcp/
     │   ├── types.ts       # MCP type definitions (McpServerConfig, McpServerState, McpToolInfo)
     │   └── client.ts      # MCP client manager: connect/disconnect, tool discovery, auto-reconnect, execution
@@ -181,6 +188,7 @@ bob/
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   ├── a2a-client.ts        # A2A client tools (discover, send, peers, trust, audit)
     │   ├── mcp-manager.ts       # MCP server management tools (add, remove, list, reconnect, toggle)
+    │   ├── analytics.ts         # Search history, tool stats, event log (SQLite-powered)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     ├── a2a/
     │   ├── types.ts       # A2A protocol interfaces (PeerAgent, AgentCard, JSON-RPC, etc.)
@@ -236,7 +244,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~151 built-in across 32 skill modules + dynamic MCP server tools)
+### Available Tools (~154 built-in across 33 skill modules + dynamic MCP server tools)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -519,6 +527,13 @@ Both share conversation history via the owner's user ID.
 
 **Dynamic MCP Tools** — any tools from connected MCP servers are available with `{server}_{tool}` prefix.
 
+**Analytics & History (3)** — requires SQLite (better-sqlite3):
+| Tool | What It Does |
+|------|-------------|
+| `search_history` | Search past conversations by keyword, date range |
+| `get_tool_stats` | Tool usage statistics: most used, success rates, avg duration |
+| `get_event_log` | Query persistent event log by type and time range |
+
 ### Event Bus (src/dashboard/events.ts)
 
 Typed EventEmitter singleton. All modules emit events, the SSE endpoint streams them
@@ -638,6 +653,36 @@ connect an existing MCP server and its tools appear automatically.
 - Tool executor falls through to `executeMcpTool()` via `isMcpTool()` in the default case
 - Dashboard receives `mcp:connect`, `mcp:disconnect`, `mcp:error`, `mcp:tools_changed` events
 
+### SQLite Database (src/db/)
+
+Bob uses SQLite for queryable, persistent structured storage alongside the existing JSON files.
+Dual-write architecture: data goes to both JSON (for backward compat) and SQLite (for queries).
+If `better-sqlite3` isn't installed, everything works in JSON-only mode.
+
+**Architecture:**
+- **Database** (`src/db/database.ts`) — singleton manager, lazy-loads better-sqlite3, WAL mode, `memory/bob.db`
+- **Migrations** (`src/db/migrations.ts`) — versioned schema via `PRAGMA user_version`, auto-applied at startup
+- **Queries** (`src/db/queries.ts`) — typed wrappers with prepared statements, no ORM
+- **Import** (`src/db/import.ts`) — one-time migration of existing JSON conversation history
+- **Skill** (`src/skills/analytics.ts`) — 3 tools: search_history, get_tool_stats, get_event_log
+
+**Tables (v1):**
+- `conversations` — all user/assistant messages with userId, role, content, source, timestamp
+- `tool_calls` — every tool execution with name, input/output, success, duration_ms, userId
+- `events` — persistent event log (survives restarts, unlike the 50-entry ring buffer)
+- `metadata` — key-value store for import flags and config
+
+**Data flow:**
+- Conversations: `memory.appendHistory()` writes to JSON (LLM context) + SQLite (long-term archive)
+- Tool calls: `core.ts` agent loop records each tool execution with timing to SQLite
+- Events: `events.emitEvent()` writes to ring buffer (SSE streaming) + SQLite (durability)
+- Import: on first run, all `memory/user-*.json` files are imported into `conversations` table
+
+**Graceful degradation:**
+- All SQLite writes are wrapped in try/catch — failures don't break the agent
+- `isDbAvailable()` check in every query function — returns empty results if DB not ready
+- Deleting `bob.db` is safe — system continues in JSON-only mode, re-imports on next startup
+
 ---
 
 ## Development
@@ -698,7 +743,7 @@ pnpm test             # Run tests (vitest)
 
 ### Phase 3: Enhanced Capabilities
 - ~~MCP (Model Context Protocol) client for plug-and-play tool servers~~ ✓ Done — stdio + SSE transports, 6 management tools, auto-reconnect, persistent config
-- SQLite for task history and structured memory
+- ~~SQLite for task history and structured memory~~ ✓ Done (Phase 1) — conversations, tool calls, events; dual-write with JSON fallback; 3 analytics tools
 
 ### Phase 4: Voice
 - ~~Twilio for phone calls~~ ✓ Done — `call_owner`, `send_sms`, `get_call_status`
