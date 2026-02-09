@@ -200,6 +200,22 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     ],
   },
   {
+    name: "home",
+    description: "Smart home control via Home Assistant: lights, switches, climate, scenes, automations",
+    keywords: [
+      "home assistant", "smart home", "light", "lights", "switch", "climate",
+      "thermostat", "scene", "automation", "device", "sensor",
+      "door", "window", "motion", "temperature", "humidity",
+      "turn on", "turn off",
+    ],
+    toolNames: [
+      "ha_get_state", "ha_get_all_states", "ha_call_service", "ha_toggle", "ha_set_state",
+      "ha_list_scenes", "ha_activate_scene", "ha_list_automations", "ha_toggle_automation",
+      "ha_get_history", "ha_get_services", "ha_system_info",
+      "ha_watch_device", "ha_list_watches", "ha_remove_watch",
+    ],
+  },
+  {
     name: "analytics",
     description: "Search conversation history, tool usage stats, persistent event log",
     keywords: [

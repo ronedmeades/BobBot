@@ -84,6 +84,7 @@ async function main(): Promise<void> {
     stopWorker();
     stopScheduler();
     import("./mcp/client.js").then((m) => m.shutdownMcpClients()).catch(() => {});
+    import("./skills/home-assistant.js").then((m) => m.shutdownHomeAssistant()).catch(() => {});
     import("./db/database.js").then((m) => m.closeDb()).catch(() => {});
     stopBot();
     process.exit(0);

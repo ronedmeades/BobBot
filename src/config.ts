@@ -31,6 +31,10 @@ export const config = {
     name: "Bob",
     maxToolRounds: 20,
   },
+  homeAssistant: {
+    url: process.env.HA_URL ?? "http://localhost:8123",
+    token: process.env.HA_TOKEN ?? "",
+  },
   a2a: {
     enabled: !!process.env.A2A_ENABLED,
     discoveryMode: (process.env.A2A_DISCOVERY_MODE ?? "handshake") as DiscoveryMode,

@@ -152,6 +152,23 @@ const BLOCKED_TOOLS = new Set([
   "search_tasks",
   "get_task_audit",
 
+  // Home Assistant — never let external agents control your home
+  "ha_get_state",
+  "ha_get_all_states",
+  "ha_call_service",
+  "ha_toggle",
+  "ha_set_state",
+  "ha_list_scenes",
+  "ha_activate_scene",
+  "ha_list_automations",
+  "ha_toggle_automation",
+  "ha_get_history",
+  "ha_get_services",
+  "ha_system_info",
+  "ha_watch_device",
+  "ha_list_watches",
+  "ha_remove_watch",
+
   // A2A client tools — prevent recursive forwarding
   "discover_agent",
   "send_to_agent",

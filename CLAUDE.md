@@ -47,6 +47,8 @@ OWNER_USER_ID=your-telegram-user-id # Your Telegram user ID
 OWNER_NAME=YourName                 # How Bob addresses you
 OWNER_NOTES=Optional context        # Anything Bob should know about you
 DASHBOARD_PORT=3000                 # Optional, defaults to 3000
+HA_URL=http://192.168.1.100:8123    # Home Assistant URL (optional)
+HA_TOKEN=your_long_lived_token      # HA long-lived access token (optional)
 ```
 
 To create your own Telegram bot:
@@ -186,6 +188,7 @@ bob/
     │   ├── env-manager.ts       # Safely set/list .env vars (allowlisted keys only)
     │   ├── standing-rules.ts    # Persistent marketplace monitoring rules (hourly scheduler)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
+    │   ├── home-assistant.ts     # Home Assistant smart home (REST + WebSocket, 15 tools, device monitors)
     │   ├── a2a-client.ts        # A2A client tools (discover, send, peers, trust, audit)
     │   ├── mcp-manager.ts       # MCP server management tools (add, remove, list, reconnect, toggle)
     │   ├── analytics.ts         # Search history, tool stats, event log (SQLite-powered)
@@ -503,6 +506,25 @@ Both share conversation history via the owner's user ID.
 | `update_standing_rule` | Modify params, enable/disable, change notification channels |
 | `remove_standing_rule` | Delete a monitoring rule |
 
+**Home Assistant — Smart Home (15)** — requires `HA_TOKEN`:
+| Tool | What It Does |
+|------|-------------|
+| `ha_get_state` | Get state + attributes of a single entity |
+| `ha_get_all_states` | List all entities grouped by domain, optional filter |
+| `ha_call_service` | Call any HA service (light/turn_on, climate/set_temperature, etc.) |
+| `ha_toggle` | Toggle an entity on/off |
+| `ha_set_state` | Quick on/off for common entities |
+| `ha_list_scenes` | List available scenes |
+| `ha_activate_scene` | Activate a scene (movie mode, bedtime, etc.) |
+| `ha_list_automations` | List automations with enabled/disabled status |
+| `ha_toggle_automation` | Enable/disable an automation |
+| `ha_get_history` | State change history for an entity over time |
+| `ha_get_services` | List available services for a domain |
+| `ha_system_info` | HA version, location, timezone, components |
+| `ha_watch_device` | Create persistent monitor rule (alert on state condition) |
+| `ha_list_watches` | List active device monitors |
+| `ha_remove_watch` | Remove a device monitor |
+
 **A2A Client — Agent-to-Agent Communication (8)** — requires `A2A_ENABLED=true`:
 | Tool | What It Does |
 |------|-------------|
@@ -744,41 +766,24 @@ pnpm test             # Run tests (vitest)
 
 ## Future Roadmap
 
-### Phase 2: Medical API Explorer
-- FHIR-aware tools for medical API conventions
-- Resource type enumeration and download
-- Cross-format normalization (FHIR R4 JSON as canonical)
-
-### Phase 3: Enhanced Capabilities
-- ~~MCP (Model Context Protocol) client for plug-and-play tool servers~~ ✓ Done — stdio + SSE transports, 6 management tools, auto-reconnect, persistent config
-- ~~SQLite for task history and structured memory~~ ✓ Done (Phase 1+2) — conversations, tool calls, events, task audit trail; dual-write with JSON fallback; 5 analytics tools
-
-### Phase 4: Voice
-- ~~Twilio for phone calls~~ ✓ Done — `call_owner`, `send_sms`, `get_call_status`
+### Voice
 - Telegram voice messages via Whisper transcription
 - Text-to-speech for responses
 
-### Phase 5: Smart Home
-- Smart home (Home Assistant)
+### Smart Home
+- Home Assistant integration
+
+### Community
+- Discord server for Bob community
 
 ---
 
 ## Next Session
 
-- [x] Desktop & taskbar shortcut — click to launch Bob (or focus if already running)
-- [x] Notification system — per-task notify_via + user default preference
-- [x] Marketplace engine — cross-platform adapter pattern (eBay, Etsy, Poshmark, Depop + local adapters)
-- [x] Test Twilio phone call & SMS — credentials configured, calls working (trial account, SMS needs upgrade)
-- [x] Escalation engine phase 2: Standing rules + marketplace monitoring (unshipped orders, new orders, messages, daily summary)
-- [x] Escalation engine phase 3: Proactive insights — trigger history tracking, 5 insight detectors, weekly insights digest
-- [x] Worker preemption — direct chat now preempts background tasks (busy state yields between tool rounds)
-- [x] Hallucination guard — catches when Bob claims to have done something without using the tool, forces retry
-- [x] Bob-to-Bob communication — A2A protocol implementation (Agent Card, JSON-RPC, handshake, sandbox, trust tiers, 8 client tools)
-- [x] MCP (Model Context Protocol) client — stdio + SSE transports, 6 management tools, auto-reconnect, persistent config, A2A security boundary
-- [x] Tool loading optimization — category-based loading reduces token usage by 70-91%, load_tools meta-tool for on-demand expansion
-- [ ] Discord server for Bob community — research and set up
+- [ ] Smart Home — Home Assistant integration
+- [ ] Voice — Telegram voice messages via Whisper transcription
+- [ ] Discord server for Bob community
 - [ ] Daily tech news digest — automated summary of AI/robotics/tech news
-- [ ] Twilio upgrade — upgrade from trial to enable SMS and remove trial call announcement
 
 ## Known Issues
 

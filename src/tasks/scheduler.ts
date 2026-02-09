@@ -8,6 +8,7 @@ import { checkAllWatches } from "../skills/web-monitor.js";
 import { checkCalendarReminders } from "../skills/calendar.js";
 import { checkReminders } from "../skills/reminders.js";
 import { checkStandingRules, initStandingRules } from "../skills/standing-rules.js";
+import { checkHomeAssistantMonitors } from "../skills/home-assistant.js";
 import { getIsBusy } from "./busy-state.js";
 
 /**
@@ -211,6 +212,18 @@ async function runAllChecks(): Promise<void> {
     }
   } catch (err) {
     console.error("[scheduler] Standing rules error:", err);
+  }
+
+  // Check Home Assistant device monitors
+  try {
+    const haAlerts = await checkHomeAssistantMonitors();
+    if (haAlerts.length > 0) {
+      await sendOwnerMessage(
+        `Home Assistant alerts:\n\n${haAlerts.join("\n\n")}`
+      );
+    }
+  } catch (err) {
+    console.error("[scheduler] HA monitors error:", err);
   }
 
   // A2A maintenance (rate limit reset, approval expiry, cleanup, presence pings)

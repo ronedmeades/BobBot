@@ -31,6 +31,7 @@ import { standingRulesToolDefinitions } from "../skills/standing-rules.js";
 import { a2aClientToolDefinitions } from "../skills/a2a-client.js";
 import { mcpManagerToolDefinitions } from "../skills/mcp-manager.js";
 import { analyticsToolDefinitions } from "../skills/analytics.js";
+import { homeAssistantToolDefinitions } from "../skills/home-assistant.js";
 import { getMcpToolDefinitions } from "../mcp/client.js";
 import { config } from "../config.js";
 import { loadLocalSkills, getLocalToolDefinitions } from "../skills/local-loader.js";
@@ -278,6 +279,8 @@ const builtinTools: ToolDefinition[] = [
   ...mcpManagerToolDefinitions,
   // Analytics & history (search conversations, tool stats, event log)
   ...analyticsToolDefinitions,
+  // Home Assistant smart home control (only when HA_TOKEN is set)
+  ...(config.homeAssistant.token ? homeAssistantToolDefinitions : []),
   // A2A client tools (only when A2A is enabled)
   ...(config.a2a.enabled ? a2aClientToolDefinitions : []),
 ];

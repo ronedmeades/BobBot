@@ -212,6 +212,23 @@ import {
   handleSearchTasks,
   handleGetTaskAudit,
 } from "../skills/analytics.js";
+import {
+  handleHaGetState,
+  handleHaGetAllStates,
+  handleHaCallService,
+  handleHaToggle,
+  handleHaSetState,
+  handleHaListScenes,
+  handleHaActivateScene,
+  handleHaListAutomations,
+  handleHaToggleAutomation,
+  handleHaGetHistory,
+  handleHaGetServices,
+  handleHaSystemInfo,
+  handleHaWatchDevice,
+  handleHaListWatches,
+  handleHaRemoveWatch,
+} from "../skills/home-assistant.js";
 import { isMcpTool, executeMcpTool } from "../mcp/client.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
 import { refreshTools } from "./tools.js";
@@ -598,6 +615,37 @@ export async function executeTool(
         return await handleSearchTasks(input);
       case "get_task_audit":
         return await handleGetTaskAudit(input);
+      // Home Assistant smart home
+      case "ha_get_state":
+        return await handleHaGetState(input);
+      case "ha_get_all_states":
+        return await handleHaGetAllStates(input);
+      case "ha_call_service":
+        return await handleHaCallService(input);
+      case "ha_toggle":
+        return await handleHaToggle(input);
+      case "ha_set_state":
+        return await handleHaSetState(input);
+      case "ha_list_scenes":
+        return await handleHaListScenes();
+      case "ha_activate_scene":
+        return await handleHaActivateScene(input);
+      case "ha_list_automations":
+        return await handleHaListAutomations();
+      case "ha_toggle_automation":
+        return await handleHaToggleAutomation(input);
+      case "ha_get_history":
+        return await handleHaGetHistory(input);
+      case "ha_get_services":
+        return await handleHaGetServices(input);
+      case "ha_system_info":
+        return await handleHaSystemInfo();
+      case "ha_watch_device":
+        return await handleHaWatchDevice(input);
+      case "ha_list_watches":
+        return await handleHaListWatches();
+      case "ha_remove_watch":
+        return await handleHaRemoveWatch(input);
       // Tool loading (actual expansion happens in core.ts)
       case "load_tools": {
         const categories = (input.categories as string[]) ?? [];
