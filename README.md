@@ -1,8 +1,22 @@
 # Bob — Your Personal AI Assistant
 
-Bob is an AI assistant that lives on your computer. He can fetch information, manage files, send emails, list things on eBay, and much more. You chat with him through a web dashboard in your browser, and optionally through Telegram on your phone.
+Bob is an AI assistant that lives on your computer. He can fetch information, manage files, send emails, list things on eBay, control your smart home, and much more. You chat with him through a web dashboard in your browser, and optionally through Telegram on your phone.
 
 **You don't need to be a programmer to use Bob.** Just follow the steps below.
+
+### Why Bob?
+
+Open-source AI agents like OpenClaw have gained massive popularity (166k+ GitHub stars), but they come with serious security risks — malicious marketplace skills, remote code execution vulnerabilities, and credential leaks. Anyone can publish a skill, and your agent blindly trusts it.
+
+Bob takes a different approach:
+
+- **No open skill marketplace** — all 170+ tools are vetted first-party code, not community-submitted plugins
+- **Credential protection** — file access blocks `.env`, `.ssh/`, and credential files; API keys never leave your machine
+- **Owner-only access** — only your Telegram ID can talk to Bob; dashboard requires an API token
+- **Sandboxed A2A** — when other agents connect, they get restricted tools, separate context, rate limits, and cost tracking
+- **Your data stays local** — conversations, contacts, expenses, and notes live in `memory/` on your machine, never uploaded anywhere
+
+All the power of an autonomous agent, without the security nightmares.
 
 ---
 
