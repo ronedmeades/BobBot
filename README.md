@@ -197,7 +197,7 @@ Bob will walk you through the whole process step by step.
 
 ## What Can Bob Do?
 
-Bob has **~137 tools across 30 skill modules**. Here's what he can do out of the box:
+Bob has **170+ tools across 35 skill modules**. Here's what he can do out of the box:
 
 **Basics:**
 - **Fetch web pages and APIs** — research topics, check prices, read documentation
@@ -237,10 +237,16 @@ Bob has **~137 tools across 30 skill modules**. Here's what he can do out of the
 - **Escalation engine** — multi-channel notification chains (Telegram → SMS → phone call) with auto-acknowledge
 
 **Communication:**
+- **Voice messages** — send Bob a voice note on Telegram, get text + voice reply back (Whisper STT + edge-tts TTS)
 - **Phone calls** — Bob can call your phone and speak a message aloud (needs Twilio)
 - **SMS** — send text messages to your phone (needs Twilio)
 - **Send email** — via Gmail (needs Gmail API keys)
 - **Import Google Contacts** — pull contacts from Google into Bob's address book
+
+**Smart Home:**
+- **Home Assistant** — control lights, switches, climate, scenes, automations (15 tools)
+- **Device monitoring** — persistent watches with alerts (e.g. "tell me when the front door opens")
+- **Real-time state** — WebSocket connection for instant state change awareness, REST API fallback
 
 **System:**
 - **File organizer** — scan folders, organize by type or date, find duplicates
@@ -248,6 +254,13 @@ Bob has **~137 tools across 30 skill modules**. Here's what he can do out of the
 - **Backups** — auto-backup to an external drive on a schedule
 - **Background tasks** — hand Bob a task and he works on it autonomously
 - **Environment manager** — safely set API keys and config vars through chat (allowlisted keys only)
+- **MCP servers** — connect to Model Context Protocol servers for plug-and-play tool expansion
+- **Analytics** — search conversation history, tool usage stats, event log (SQLite-powered)
+
+**Agent-to-Agent (A2A):**
+- **Bob-to-Bob communication** — your Bob can discover and talk to other Bobs using the open A2A protocol
+- **Trust tiers** — control who can access what (blocked / manual approval / trusted / budget-capped)
+- **Security** — sandboxed execution, per-peer tokens, rate limits, cost tracking, audit log
 
 Bob is extensible — new skills can be added as modules. Ask Bob what he can do and he'll tell you.
 
@@ -304,6 +317,80 @@ pnpm dev
 Then in the dashboard, try:
 - *"Call me and say hello"*
 - *"Text me a quick test message"*
+
+---
+
+## Voice Messages (Telegram)
+
+Bob can understand voice notes and reply with voice. You need an OpenAI API key for the speech-to-text part (text-to-speech is free).
+
+### How it works
+
+1. **You send a voice note** on Telegram
+2. **Bob transcribes it** using OpenAI Whisper ($0.006/min — that's less than a penny per minute)
+3. **Bob processes your request** just like a text message
+4. **Bob replies with text AND voice** — the voice reply is free (uses Microsoft Edge TTS)
+
+### Setup
+
+Add to your `.env` file:
+
+```
+OPENAI_API_KEY=sk-xxxxx
+```
+
+> **Already using OpenAI as your LLM provider?** Bob reuses `LLM_API_KEY` automatically — no extra key needed.
+
+Optionally customize Bob's voice:
+
+```
+BOB_VOICE=en-GB-RyanNeural
+```
+
+The default is a British male voice. See [Microsoft's voice list](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support) for alternatives.
+
+---
+
+## Smart Home (Home Assistant)
+
+Bob can control your smart home devices through Home Assistant.
+
+### Step 1: Generate a long-lived access token
+
+1. In Home Assistant, go to your **Profile** (click your name, bottom-left)
+2. Scroll down to **Long-Lived Access Tokens**
+3. Click **Create Token**, give it a name (e.g. "Bob"), and copy it
+
+### Step 2: Add to your .env file
+
+```
+HA_URL=http://192.168.1.100:8123
+HA_TOKEN=your_long_lived_access_token_here
+```
+
+Replace the URL with your Home Assistant's address.
+
+### Step 3: Restart Bob and test
+
+```
+pnpm dev
+```
+
+Then try:
+- *"What devices do I have?"*
+- *"Turn off the living room lights"*
+- *"What's the temperature in the bedroom?"*
+- *"Watch the front door and tell me when it opens"*
+
+---
+
+## Community
+
+Join the Bob community to share tips, get help, and show off what your Bob can do:
+
+- **Discord**: [Coming soon — join the waitlist!](https://github.com/ronedmeades/BobBot/issues)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/ronedmeades/BobBot/issues)
+- **GitHub Discussions**: [Ask questions and share ideas](https://github.com/ronedmeades/BobBot/discussions)
 
 ---
 
