@@ -69,6 +69,7 @@ Waiting for Telegram messages...
 
 ### Dependencies
 - **@anthropic-ai/sdk** — Claude API client
+- **@modelcontextprotocol/sdk** — MCP client (stdio + SSE transports)
 - **grammy** — Telegram Bot framework
 - **dotenv** — Environment variable loading
 
@@ -122,7 +123,8 @@ bob/
 │   ├── a2a-peers.json     # A2A peer registry (when A2A enabled)
 │   ├── a2a-audit.json     # A2A interaction audit log
 │   ├── a2a-tasks.json     # A2A protocol task state
-│   └── a2a-approvals.json # A2A pending approval requests
+│   ├── a2a-approvals.json # A2A pending approval requests
+│   └── mcp-servers.json   # MCP server configs (persistent, auto-connect on startup)
 └── src/
     ├── index.ts           # Entry point — starts bot + dashboard + scheduler, seeds owner profile
     ├── config.ts          # Loads .env, validates required keys, multi-provider support
@@ -144,6 +146,9 @@ bob/
     │   ├── anthropic.ts   # Anthropic/Claude provider
     │   ├── openai.ts      # OpenAI provider
     │   └── gemini.ts      # Google Gemini provider
+    ├── mcp/
+    │   ├── types.ts       # MCP type definitions (McpServerConfig, McpServerState, McpToolInfo)
+    │   └── client.ts      # MCP client manager: connect/disconnect, tool discovery, auto-reconnect, execution
     ├── skills/
     │   ├── image-processing.ts  # Resize, crop, convert, watermark, thumbnails (sharp)
     │   ├── ebay-listing.ts      # eBay API: listings, images, categories, bulk price updates
@@ -175,6 +180,7 @@ bob/
     │   ├── standing-rules.ts    # Persistent marketplace monitoring rules (hourly scheduler)
     │   ├── marketplace.ts       # Unified marketplace tools (orders, messages, fulfillment)
     │   ├── a2a-client.ts        # A2A client tools (discover, send, peers, trust, audit)
+    │   ├── mcp-manager.ts       # MCP server management tools (add, remove, list, reconnect, toggle)
     │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
     ├── a2a/
     │   ├── types.ts       # A2A protocol interfaces (PeerAgent, AgentCard, JSON-RPC, etc.)
@@ -230,7 +236,7 @@ Both share conversation history via the owner's user ID.
 9. Return response
 ```
 
-### Available Tools (~137 total across 30 skill modules, 4 marketplace platforms)
+### Available Tools (~151 built-in across 32 skill modules + dynamic MCP server tools)
 
 **Core Tools (10):**
 | Tool | What It Does |
@@ -501,6 +507,18 @@ Both share conversation history via the owner's user ID.
 | `a2a_audit_log` | View A2A interaction history with cost tracking |
 | `approve_a2a_request` | Approve/reject pending task or handshake requests |
 
+**MCP Server Management (6):**
+| Tool | What It Does |
+|------|-------------|
+| `mcp_add_server` | Connect to an MCP server (stdio subprocess or SSE HTTP). Tools become available as `{server}_{tool}` |
+| `mcp_remove_server` | Disconnect and remove an MCP server |
+| `mcp_list_servers` | List all configured servers with status and tool count |
+| `mcp_list_tools` | List all tools from MCP servers (optionally filtered by server) |
+| `mcp_reconnect` | Reconnect to one or all MCP servers |
+| `mcp_toggle_server` | Enable/disable a server without removing its config |
+
+**Dynamic MCP Tools** — any tools from connected MCP servers are available with `{server}_{tool}` prefix.
+
 ### Event Bus (src/dashboard/events.ts)
 
 Typed EventEmitter singleton. All modules emit events, the SSE endpoint streams them
@@ -518,6 +536,10 @@ to the dashboard in real-time. Maintains a 50-event ring buffer for history on c
 | `a2a:response` | peerId, taskId, state, costUsd | server.ts (a2a) |
 | `a2a:approval` | requestId, peerName, description, status, type | server.ts (a2a) |
 | `a2a:peer` | peerId, peerName, action | server.ts (a2a) |
+| `mcp:connect` | server, toolCount | client.ts (mcp) |
+| `mcp:disconnect` | server, reason | client.ts (mcp) |
+| `mcp:error` | server, error | client.ts (mcp) |
+| `mcp:tools_changed` | server, toolCount | client.ts (mcp) |
 
 ### Dashboard API (src/dashboard/server.ts)
 
@@ -583,6 +605,39 @@ the open A2A protocol (Google/Linux Foundation standard). Disabled by default �
 - `/reject <id>` — reject a pending request
 - `/trust <id>` — approve AND set peer to Trusted tier (auto-approve all future requests)
 
+### MCP (Model Context Protocol) Client (src/mcp/)
+
+Bob can connect to any MCP-compatible tool server, making its tools available natively.
+This is the primary extensibility mechanism — instead of writing new skills from scratch,
+connect an existing MCP server and its tools appear automatically.
+
+**Architecture:**
+- **Client manager** (`src/mcp/client.ts`) — manages multiple server connections, tool discovery, execution dispatch
+- **Skill** (`src/skills/mcp-manager.ts`) — 6 owner-facing tools for self-configuration via chat
+- **Persistent config** in `memory/mcp-servers.json` — servers auto-connect on startup
+- **Tool namespace** — each server's tools prefixed as `{serverName}_{toolName}` to prevent collisions
+- **O(1) dispatch** — `Map<prefixedName, {server, originalName}>` for instant routing
+
+**Transports:**
+- **stdio** — runs MCP server as a subprocess (e.g. `npx @modelcontextprotocol/server-filesystem /path`)
+- **SSE** — connects to remote MCP server over HTTP/Server-Sent Events
+
+**Reliability:**
+- Auto-reconnect with exponential backoff (2s → 4s → 8s → ... up to 60s, max 5 attempts)
+- Listens for `ToolListChangedNotification` — live tool refresh when server updates
+- Transport error/close handlers trigger reconnection automatically
+- Graceful shutdown disconnects all servers on process exit
+
+**Security:**
+- MCP management tools (`mcp_add_server`, etc.) are in A2A `BLOCKED_TOOLS` — owner only
+- Dynamic MCP tools are blocked from A2A peers (`isMcpTool()` check in `isPublicTool()`)
+- MCP tools always included in category-based tool loading (user explicitly configured them)
+
+**Integration:**
+- Tools appear in `refreshTools()` alongside built-in and local tools
+- Tool executor falls through to `executeMcpTool()` via `isMcpTool()` in the default case
+- Dashboard receives `mcp:connect`, `mcp:disconnect`, `mcp:error`, `mcp:tools_changed` events
+
 ---
 
 ## Development
@@ -642,7 +697,7 @@ pnpm test             # Run tests (vitest)
 - Cross-format normalization (FHIR R4 JSON as canonical)
 
 ### Phase 3: Enhanced Capabilities
-- MCP (Model Context Protocol) client for plug-and-play tool servers
+- ~~MCP (Model Context Protocol) client for plug-and-play tool servers~~ ✓ Done — stdio + SSE transports, 6 management tools, auto-reconnect, persistent config
 - SQLite for task history and structured memory
 
 ### Phase 4: Voice
@@ -666,8 +721,8 @@ pnpm test             # Run tests (vitest)
 - [x] Worker preemption — direct chat now preempts background tasks (busy state yields between tool rounds)
 - [x] Hallucination guard — catches when Bob claims to have done something without using the tool, forces retry
 - [x] Bob-to-Bob communication — A2A protocol implementation (Agent Card, JSON-RPC, handshake, sandbox, trust tiers, 8 client tools)
-- [ ] MCP (Model Context Protocol) client — plug-and-play tool servers (high priority if project goes public)
-- [ ] Tool loading optimization — consider category-based or on-demand tool loading to reduce 137-tool context pressure
+- [x] MCP (Model Context Protocol) client — stdio + SSE transports, 6 management tools, auto-reconnect, persistent config, A2A security boundary
+- [x] Tool loading optimization — category-based loading reduces token usage by 70-91%, load_tools meta-tool for on-demand expansion
 - [ ] Discord server for Bob community — research and set up
 - [ ] Daily tech news digest — automated summary of AI/robotics/tech news
 - [ ] Twilio upgrade — upgrade from trial to enable SMS and remove trial call announcement
@@ -678,7 +733,8 @@ pnpm test             # Run tests (vitest)
 With ~137 tools loaded on every message, the LLM sometimes "describes" taking an action (e.g. "Calling you now!") without actually invoking the tool. This is a known LLM behavior under high tool-count context pressure. **Mitigations in place:**
 1. System prompt includes explicit `CRITICAL — Tool usage rules` section forbidding fake actions
 2. `detectUnusedActions()` guard in `core.ts` catches claims about calls, SMS, calendar, reminders, and emails without corresponding tool usage, and re-enters the agent loop with a correction prompt
-3. Future: MCP and category-based tool loading will reduce context pressure
+3. Category-based tool loading (implemented) reduces tools sent per message from ~145 to 12-40, significantly reducing context pressure
+4. MCP tool servers further reduce need to load all built-in tools at once
 
 ### Worker Preemption
 Background tasks used to block direct chat entirely. Fixed with preemption: when a chat message arrives, the worker yields at the next tool-round boundary (5-30s worst case). Implementation in `busy-state.ts` (preempt flag) and `core.ts` (check + wait-for-yield).
