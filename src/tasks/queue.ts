@@ -24,6 +24,38 @@ async function save(): Promise<void> {
   await writeFile(QUEUE_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
 
+/** Persist a task snapshot to SQLite (best-effort). */
+function syncTaskToDb(task: Task): void {
+  try {
+    import("../db/queries.js").then((mod) => {
+      mod.upsertTask({
+        id: task.id,
+        userId: task.userId,
+        chatId: task.chatId,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        findings: task.findings || undefined,
+        nextAction: task.nextAction || undefined,
+        stepsCompleted: task.stepsCompleted,
+        maxSteps: task.maxSteps,
+        result: task.result,
+        error: task.error,
+        toolsUsed: task.toolsUsed,
+        createdAt: task.createdAt,
+        startedAt: task.startedAt,
+        pausedAt: task.pausedAt,
+        completedAt: task.completedAt,
+        createdBy: task.createdBy,
+        tags: task.tags,
+        retryCount: task.retryCount,
+        notifyVia: task.notifyVia,
+        escalateAfterMin: task.escalateAfterMin,
+      });
+    }).catch(() => {});
+  } catch { /* SQLite unavailable */ }
+}
+
 export async function initTaskQueue(): Promise<void> {
   try {
     const raw = await readFile(QUEUE_FILE, "utf-8");
@@ -81,6 +113,7 @@ export async function createTask(opts: CreateTaskOpts): Promise<Task> {
 
   queue.push(task);
   await save();
+  syncTaskToDb(task);
   return task;
 }
 
@@ -94,6 +127,7 @@ export async function updateTask(id: string, updates: Partial<Task>): Promise<Ta
 
   Object.assign(task, updates);
   await save();
+  syncTaskToDb(task);
   return task;
 }
 
@@ -134,6 +168,7 @@ export async function cancelTask(id: string): Promise<Task | undefined> {
   task.status = "cancelled";
   task.completedAt = new Date().toISOString();
   await save();
+  syncTaskToDb(task);
   return task;
 }
 
@@ -145,6 +180,7 @@ export async function pauseTask(id: string): Promise<Task | undefined> {
   task.status = "paused";
   task.pausedAt = new Date().toISOString();
   await save();
+  syncTaskToDb(task);
   return task;
 }
 
@@ -156,6 +192,7 @@ export async function resumeTask(id: string): Promise<Task | undefined> {
   task.status = "pending";
   task.pausedAt = undefined;
   await save();
+  syncTaskToDb(task);
   return task;
 }
 

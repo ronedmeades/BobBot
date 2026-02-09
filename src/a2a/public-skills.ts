@@ -145,10 +145,12 @@ const BLOCKED_TOOLS = new Set([
   "mcp_reconnect",
   "mcp_toggle_server",
 
-  // Analytics — contains owner conversation history
+  // Analytics — contains owner conversation history and task data
   "search_history",
   "get_tool_stats",
   "get_event_log",
+  "search_tasks",
+  "get_task_audit",
 
   // A2A client tools — prevent recursive forwarding
   "discover_agent",

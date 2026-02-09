@@ -205,8 +205,9 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     keywords: [
       "history", "search history", "stats", "analytics", "when did",
       "how often", "event log", "tool usage", "most used",
+      "task audit", "task history", "background task",
     ],
-    toolNames: ["search_history", "get_tool_stats", "get_event_log"],
+    toolNames: ["search_history", "get_tool_stats", "get_event_log", "search_tasks", "get_task_audit"],
   },
 ];
 

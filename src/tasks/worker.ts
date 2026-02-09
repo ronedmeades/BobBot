@@ -131,14 +131,29 @@ async function executeStep(task: Task): Promise<void> {
   const { findings, nextAction, isDone } = parseFindings(response.text);
 
   // Record the step
+  const stepTimestamp = new Date().toISOString();
   const step: TaskStep = {
     stepNumber: task.stepsCompleted + 1,
     prompt,
     response: response.text,
     toolsUsed: response.toolsUsed,
-    timestamp: new Date().toISOString(),
+    timestamp: stepTimestamp,
     durationMs,
   };
+
+  // Persist step to SQLite
+  try {
+    const { insertTaskStep } = await import("../db/queries.js");
+    insertTaskStep({
+      taskId: task.id,
+      stepNumber: step.stepNumber,
+      prompt,
+      response: response.text,
+      toolsUsed: response.toolsUsed,
+      timestamp: stepTimestamp,
+      durationMs,
+    });
+  } catch { /* SQLite unavailable */ }
 
   // Aggregate tools
   const allTools = [...new Set([...task.toolsUsed, ...response.toolsUsed])];

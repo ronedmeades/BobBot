@@ -209,6 +209,8 @@ import {
   handleSearchHistory,
   handleGetToolStats,
   handleGetEventLog,
+  handleSearchTasks,
+  handleGetTaskAudit,
 } from "../skills/analytics.js";
 import { isMcpTool, executeMcpTool } from "../mcp/client.js";
 import { executeLocalTool, installLocalSkill } from "../skills/local-loader.js";
@@ -592,6 +594,10 @@ export async function executeTool(
         return await handleGetToolStats(input);
       case "get_event_log":
         return await handleGetEventLog(input);
+      case "search_tasks":
+        return await handleSearchTasks(input);
+      case "get_task_audit":
+        return await handleGetTaskAudit(input);
       // Tool loading (actual expansion happens in core.ts)
       case "load_tools": {
         const categories = (input.categories as string[]) ?? [];

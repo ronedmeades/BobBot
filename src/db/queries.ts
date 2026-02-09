@@ -47,6 +47,42 @@ export interface EventRow {
   timestamp: string;
 }
 
+export interface TaskRow {
+  id: string;
+  user_id: string;
+  chat_id: number;
+  description: string;
+  status: string;
+  priority: string;
+  findings: string | null;
+  next_action: string | null;
+  steps_completed: number;
+  max_steps: number;
+  result: string | null;
+  error: string | null;
+  tools_used: string | null;
+  created_at: string;
+  started_at: string | null;
+  paused_at: string | null;
+  completed_at: string | null;
+  created_by: string;
+  tags: string | null;
+  retry_count: number;
+  notify_via: string | null;
+  escalate_after_min: number | null;
+}
+
+export interface TaskStepRow {
+  id: number;
+  task_id: string;
+  step_number: number;
+  prompt: string | null;
+  response: string | null;
+  tools_used: string | null;
+  timestamp: string;
+  duration_ms: number | null;
+}
+
 // ─── Conversation queries ───────────────────────────────────────────
 
 export function insertConversation(entry: {
@@ -281,4 +317,160 @@ export function setMetadata(key: string, value: string): void {
   db.prepare(
     "INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)"
   ).run(key, value);
+}
+
+// ─── Task queries ────────────────────────────────────────────────────
+
+export function upsertTask(task: {
+  id: string;
+  userId: string;
+  chatId: number;
+  description: string;
+  status: string;
+  priority: string;
+  findings?: string;
+  nextAction?: string;
+  stepsCompleted: number;
+  maxSteps: number;
+  result?: string;
+  error?: string;
+  toolsUsed: string[];
+  createdAt: string;
+  startedAt?: string;
+  pausedAt?: string;
+  completedAt?: string;
+  createdBy: string;
+  tags: string[];
+  retryCount: number;
+  notifyVia: string[];
+  escalateAfterMin?: number;
+}): void {
+  if (!isDbAvailable()) return;
+  const db = getDb()!;
+  db.prepare(`
+    INSERT INTO tasks (
+      id, user_id, chat_id, description, status, priority,
+      findings, next_action, steps_completed, max_steps,
+      result, error, tools_used, created_at, started_at,
+      paused_at, completed_at, created_by, tags, retry_count,
+      notify_via, escalate_after_min
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      status = excluded.status,
+      priority = excluded.priority,
+      findings = excluded.findings,
+      next_action = excluded.next_action,
+      steps_completed = excluded.steps_completed,
+      result = excluded.result,
+      error = excluded.error,
+      tools_used = excluded.tools_used,
+      started_at = excluded.started_at,
+      paused_at = excluded.paused_at,
+      completed_at = excluded.completed_at,
+      retry_count = excluded.retry_count
+  `).run(
+    task.id,
+    task.userId,
+    task.chatId,
+    task.description,
+    task.status,
+    task.priority,
+    task.findings ?? null,
+    task.nextAction ?? null,
+    task.stepsCompleted,
+    task.maxSteps,
+    task.result ?? null,
+    task.error ?? null,
+    JSON.stringify(task.toolsUsed),
+    task.createdAt,
+    task.startedAt ?? null,
+    task.pausedAt ?? null,
+    task.completedAt ?? null,
+    task.createdBy,
+    JSON.stringify(task.tags),
+    task.retryCount,
+    JSON.stringify(task.notifyVia),
+    task.escalateAfterMin ?? null,
+  );
+}
+
+export function insertTaskStep(step: {
+  taskId: string;
+  stepNumber: number;
+  prompt: string;
+  response: string;
+  toolsUsed: string[];
+  timestamp: string;
+  durationMs: number;
+}): number | null {
+  if (!isDbAvailable()) return null;
+  const db = getDb()!;
+  const result = db.prepare(`
+    INSERT INTO task_steps (task_id, step_number, prompt, response, tools_used, timestamp, duration_ms)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    step.taskId,
+    step.stepNumber,
+    step.prompt.slice(0, 10000),
+    step.response.slice(0, 10000),
+    JSON.stringify(step.toolsUsed),
+    step.timestamp,
+    step.durationMs,
+  );
+  return result.lastInsertRowid as number;
+}
+
+export function searchTasks(opts?: {
+  query?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}): TaskRow[] {
+  if (!isDbAvailable()) return [];
+  const db = getDb()!;
+  const limit = opts?.limit ?? 20;
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (opts?.query) {
+    conditions.push("(description LIKE ? OR findings LIKE ? OR result LIKE ?)");
+    const pattern = `%${opts.query}%`;
+    params.push(pattern, pattern, pattern);
+  }
+  if (opts?.status) {
+    conditions.push("status = ?");
+    params.push(opts.status);
+  }
+  if (opts?.from) {
+    conditions.push("created_at >= ?");
+    params.push(opts.from);
+  }
+  if (opts?.to) {
+    conditions.push("created_at <= ?");
+    params.push(opts.to);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const sql = `SELECT * FROM tasks ${where} ORDER BY created_at DESC LIMIT ?`;
+  params.push(limit);
+
+  return db.prepare(sql).all(...params) as TaskRow[];
+}
+
+export function getTaskAudit(taskId: string): {
+  task: TaskRow | null;
+  steps: TaskStepRow[];
+} {
+  if (!isDbAvailable()) return { task: null, steps: [] };
+  const db = getDb()!;
+
+  const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as TaskRow | undefined;
+  if (!task) return { task: null, steps: [] };
+
+  const steps = db.prepare(
+    "SELECT * FROM task_steps WHERE task_id = ? ORDER BY step_number ASC"
+  ).all(taskId) as TaskStepRow[];
+
+  return { task, steps };
 }

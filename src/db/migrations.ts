@@ -60,6 +60,54 @@ const migrations: Migration[] = [
       `);
     },
   },
+  {
+    version: 2,
+    description: "Task audit trail: tasks + task_steps tables",
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE tasks (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          chat_id INTEGER NOT NULL DEFAULT 0,
+          description TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          priority TEXT NOT NULL DEFAULT 'normal',
+          findings TEXT,
+          next_action TEXT,
+          steps_completed INTEGER NOT NULL DEFAULT 0,
+          max_steps INTEGER NOT NULL DEFAULT 10,
+          result TEXT,
+          error TEXT,
+          tools_used TEXT,
+          created_at TEXT NOT NULL,
+          started_at TEXT,
+          paused_at TEXT,
+          completed_at TEXT,
+          created_by TEXT NOT NULL DEFAULT 'user',
+          tags TEXT,
+          retry_count INTEGER NOT NULL DEFAULT 0,
+          notify_via TEXT,
+          escalate_after_min INTEGER
+        );
+        CREATE INDEX idx_task_user ON tasks(user_id);
+        CREATE INDEX idx_task_status ON tasks(status);
+        CREATE INDEX idx_task_created ON tasks(created_at);
+
+        CREATE TABLE task_steps (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          task_id TEXT NOT NULL REFERENCES tasks(id),
+          step_number INTEGER NOT NULL,
+          prompt TEXT,
+          response TEXT,
+          tools_used TEXT,
+          timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+          duration_ms INTEGER
+        );
+        CREATE INDEX idx_step_task ON task_steps(task_id);
+        CREATE INDEX idx_step_time ON task_steps(timestamp);
+      `);
+    },
+  },
 ];
 
 /**

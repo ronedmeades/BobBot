@@ -16,6 +16,8 @@ import {
   getMostUsedTools,
   getEventsInRange,
   getRecentEvents,
+  searchTasks,
+  getTaskAudit,
 } from "../db/queries.js";
 import { isDbAvailable } from "../db/database.js";
 
@@ -107,6 +109,55 @@ export const analyticsToolDefinitions: ToolDefinition[] = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: "search_tasks",
+    description:
+      "Search background task history. Find past research tasks, completed work, or failed tasks. " +
+      "Tasks are persisted in SQLite — survives restarts and the 7-day JSON cleanup.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "Search terms to find in task descriptions, findings, or results",
+        },
+        status: {
+          type: "string",
+          enum: ["pending", "active", "paused", "completed", "failed", "cancelled"],
+          description: "Filter by task status",
+        },
+        from: {
+          type: "string",
+          description: "Start date filter (ISO format)",
+        },
+        to: {
+          type: "string",
+          description: "End date filter (ISO format)",
+        },
+        limit: {
+          type: "number",
+          description: "Max results (default: 20)",
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "get_task_audit",
+    description:
+      "Get the full audit trail for a background task — every step, prompt, response, tools used, and timing. " +
+      "Use this to review what Bob did during a background task, debug failures, or understand results.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        task_id: {
+          type: "string",
+          description: "The task UUID (full or partial — will match prefix)",
+        },
+      },
+      required: ["task_id"],
     },
   },
 ];
@@ -254,5 +305,117 @@ export async function handleGetEventLog(
   return {
     success: true,
     output: `Event log (${rows.length} entries):\n${lines.join("\n")}`,
+  };
+}
+
+export async function handleSearchTasks(
+  input: Record<string, unknown>
+): Promise<ToolResult> {
+  if (!isDbAvailable()) {
+    return {
+      success: false,
+      output: "SQLite is not available. Task search requires the database to be initialized.",
+    };
+  }
+
+  const rows = searchTasks({
+    query: input.query as string | undefined,
+    status: input.status as string | undefined,
+    from: input.from as string | undefined,
+    to: input.to as string | undefined,
+    limit: (input.limit as number) ?? 20,
+  });
+
+  if (rows.length === 0) {
+    return { success: true, output: "No tasks found matching the criteria." };
+  }
+
+  const lines = rows.map((t) => {
+    const date = t.created_at.slice(0, 16).replace("T", " ");
+    const tools = t.tools_used ? JSON.parse(t.tools_used) as string[] : [];
+    const duration = t.completed_at && t.started_at
+      ? Math.round((new Date(t.completed_at).getTime() - new Date(t.started_at).getTime()) / 1000)
+      : null;
+    return [
+      `[${date}] ${t.status.toUpperCase()} (${t.priority}) — ${t.description}`,
+      `  ID: ${t.id.slice(0, 8)}  Steps: ${t.steps_completed}/${t.max_steps}  Tools: ${tools.length}${duration ? `  Duration: ${duration}s` : ""}`,
+      t.result ? `  Result: ${t.result.slice(0, 150)}${t.result.length > 150 ? "..." : ""}` : "",
+      t.error ? `  Error: ${t.error.slice(0, 150)}` : "",
+    ].filter(Boolean).join("\n");
+  });
+
+  return {
+    success: true,
+    output: `Found ${rows.length} task(s):\n\n${lines.join("\n\n")}`,
+  };
+}
+
+export async function handleGetTaskAudit(
+  input: Record<string, unknown>
+): Promise<ToolResult> {
+  if (!isDbAvailable()) {
+    return {
+      success: false,
+      output: "SQLite is not available. Task audit requires the database to be initialized.",
+    };
+  }
+
+  const taskId = input.task_id as string;
+  if (!taskId) {
+    return { success: false, output: "task_id is required" };
+  }
+
+  // Try exact match first, then prefix match
+  let audit = getTaskAudit(taskId);
+  if (!audit.task && taskId.length < 36) {
+    // Prefix match — search for tasks starting with this ID
+    const matches = searchTasks({ query: taskId, limit: 5 });
+    const match = matches.find((t) => t.id.startsWith(taskId));
+    if (match) {
+      audit = getTaskAudit(match.id);
+    }
+  }
+
+  if (!audit.task) {
+    return { success: true, output: `No task found with ID "${taskId}".` };
+  }
+
+  const t = audit.task;
+  const tools = t.tools_used ? JSON.parse(t.tools_used) as string[] : [];
+  const tags = t.tags ? JSON.parse(t.tags) as string[] : [];
+
+  const header = [
+    `Task: ${t.description}`,
+    `ID: ${t.id}`,
+    `Status: ${t.status}  Priority: ${t.priority}  Created by: ${t.created_by}`,
+    `Steps: ${t.steps_completed}/${t.max_steps}  Retries: ${t.retry_count}`,
+    `Created: ${t.created_at}`,
+    t.started_at ? `Started: ${t.started_at}` : null,
+    t.completed_at ? `Completed: ${t.completed_at}` : null,
+    tools.length > 0 ? `Tools used: ${tools.join(", ")}` : null,
+    tags.length > 0 ? `Tags: ${tags.join(", ")}` : null,
+    t.result ? `\nResult:\n${t.result.slice(0, 2000)}` : null,
+    t.error ? `\nError: ${t.error}` : null,
+  ].filter(Boolean).join("\n");
+
+  if (audit.steps.length === 0) {
+    return { success: true, output: `${header}\n\nNo step audit trail recorded.` };
+  }
+
+  const stepLines = audit.steps.map((s) => {
+    const stepTools = s.tools_used ? JSON.parse(s.tools_used) as string[] : [];
+    const response = s.response
+      ? s.response.slice(0, 500) + (s.response.length > 500 ? "..." : "")
+      : "(no response)";
+    return [
+      `--- Step ${s.step_number} (${s.duration_ms ? Math.round(s.duration_ms / 1000) + "s" : "?s"}) ---`,
+      stepTools.length > 0 ? `Tools: ${stepTools.join(", ")}` : "Tools: none",
+      `Response:\n${response}`,
+    ].join("\n");
+  });
+
+  return {
+    success: true,
+    output: `${header}\n\n## Step Audit Trail\n\n${stepLines.join("\n\n")}`,
   };
 }

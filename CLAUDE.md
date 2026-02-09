@@ -527,12 +527,14 @@ Both share conversation history via the owner's user ID.
 
 **Dynamic MCP Tools** — any tools from connected MCP servers are available with `{server}_{tool}` prefix.
 
-**Analytics & History (3)** — requires SQLite (better-sqlite3):
+**Analytics & History (5)** — requires SQLite (better-sqlite3):
 | Tool | What It Does |
 |------|-------------|
 | `search_history` | Search past conversations by keyword, date range |
 | `get_tool_stats` | Tool usage statistics: most used, success rates, avg duration |
 | `get_event_log` | Query persistent event log by type and time range |
+| `search_tasks` | Search background task history by keyword, status, date range |
+| `get_task_audit` | Full audit trail for a task: every step, prompt, response, tools, timing |
 
 ### Event Bus (src/dashboard/events.ts)
 
@@ -664,18 +666,24 @@ If `better-sqlite3` isn't installed, everything works in JSON-only mode.
 - **Migrations** (`src/db/migrations.ts`) — versioned schema via `PRAGMA user_version`, auto-applied at startup
 - **Queries** (`src/db/queries.ts`) — typed wrappers with prepared statements, no ORM
 - **Import** (`src/db/import.ts`) — one-time migration of existing JSON conversation history
-- **Skill** (`src/skills/analytics.ts`) — 3 tools: search_history, get_tool_stats, get_event_log
+- **Skill** (`src/skills/analytics.ts`) — 5 tools: search_history, get_tool_stats, get_event_log, search_tasks, get_task_audit
 
-**Tables (v1):**
+**Tables (v1 — conversations, tool calls, events):**
 - `conversations` — all user/assistant messages with userId, role, content, source, timestamp
 - `tool_calls` — every tool execution with name, input/output, success, duration_ms, userId
 - `events` — persistent event log (survives restarts, unlike the 50-entry ring buffer)
 - `metadata` — key-value store for import flags and config
 
+**Tables (v2 — task audit trail):**
+- `tasks` — mirrors Task interface: id, status, priority, description, findings, result, tools_used, timestamps
+- `task_steps` — per-step audit: step_number, prompt, response, tools_used, duration_ms
+
 **Data flow:**
 - Conversations: `memory.appendHistory()` writes to JSON (LLM context) + SQLite (long-term archive)
 - Tool calls: `core.ts` agent loop records each tool execution with timing to SQLite
 - Events: `events.emitEvent()` writes to ring buffer (SSE streaming) + SQLite (durability)
+- Tasks: `queue.ts` syncs task state on every create/update/cancel/pause/resume
+- Task steps: `worker.ts` records each step with prompt, response, tools, and timing
 - Import: on first run, all `memory/user-*.json` files are imported into `conversations` table
 
 **Graceful degradation:**
@@ -743,7 +751,7 @@ pnpm test             # Run tests (vitest)
 
 ### Phase 3: Enhanced Capabilities
 - ~~MCP (Model Context Protocol) client for plug-and-play tool servers~~ ✓ Done — stdio + SSE transports, 6 management tools, auto-reconnect, persistent config
-- ~~SQLite for task history and structured memory~~ ✓ Done (Phase 1) — conversations, tool calls, events; dual-write with JSON fallback; 3 analytics tools
+- ~~SQLite for task history and structured memory~~ ✓ Done (Phase 1+2) — conversations, tool calls, events, task audit trail; dual-write with JSON fallback; 5 analytics tools
 
 ### Phase 4: Voice
 - ~~Twilio for phone calls~~ ✓ Done — `call_owner`, `send_sms`, `get_call_status`
