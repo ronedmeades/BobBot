@@ -27,6 +27,10 @@ async function main(): Promise<void> {
 
   await initTools();
 
+  // Initialize knowledge plugins (Anthropic format, keyword-indexed)
+  const { initPlugins } = await import("./agent/plugin-loader.js");
+  await initPlugins();
+
   // Seed owner's profile if it doesn't exist yet
   const ownerId = config.owner.userId;
   const existing = await memory.loadProfile(ownerId);

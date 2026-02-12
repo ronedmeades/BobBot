@@ -25,6 +25,7 @@ import {
   getToolsForCategories,
   buildCategorySystemPromptSection,
 } from "./tool-loader.js";
+import { selectPluginKnowledgeForMessage } from "./plugin-loader.js";
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
   const userName = profile?.name ?? "mate";
@@ -262,8 +263,11 @@ async function runAgentInner(
 
   const isDirectChat = source === "telegram" || source === "dashboard";
   const baseSysPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes);
+  const pluginSection = isDirectChat && !options?.systemPrompt
+    ? selectPluginKnowledgeForMessage(userMessage)
+    : "";
   const systemPrompt = isDirectChat && !options?.systemPrompt
-    ? baseSysPrompt + buildCategorySystemPromptSection()
+    ? baseSysPrompt + pluginSection + buildCategorySystemPromptSection()
     : baseSysPrompt;
   let activeToolDefs = options?.toolDefs
     ?? (isDirectChat ? selectToolsForMessage(userMessage, toolDefinitions) : toolDefinitions);

@@ -12,6 +12,7 @@
 import type { ToolDefinition } from "../providers/types.js";
 import { getLocalToolDefinitions } from "../skills/local-loader.js";
 import { getMcpToolDefinitions } from "../mcp/client.js";
+import { LOAD_KNOWLEDGE_DEF, LIST_KNOWLEDGE_DEF } from "./plugin-loader.js";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -37,6 +38,8 @@ export const CORE_TOOL_NAMES = new Set([
   "install_skill",
   "get_weather",
   "get_forecast",
+  "load_knowledge",
+  "list_knowledge",
 ]);
 
 // ─── Category registry ─────────────────────────────────────────────
@@ -324,8 +327,10 @@ export function selectToolsForMessage(
     }
   }
 
-  // Always append load_tools meta-tool
+  // Always append meta-tools
   filtered.push(LOAD_TOOLS_DEF);
+  filtered.push(LOAD_KNOWLEDGE_DEF);
+  filtered.push(LIST_KNOWLEDGE_DEF);
 
   if (matchedCategories.length > 0) {
     console.log(`[tool-loader] Matched categories: ${matchedCategories.join(", ")}`);

@@ -657,6 +657,24 @@ export async function executeTool(
         if (unknowns.length > 0) msg += ` Unknown categories (ignored): ${unknowns.join(", ")}`;
         return { success: true, output: msg };
       }
+      // Knowledge plugin loading (returns domain expertise, not tool capabilities)
+      case "load_knowledge": {
+        const { loadPluginContent } = await import("./plugin-loader.js");
+        const skillName = input.skill as string;
+        const includeRefs = (input.include_references as boolean) ?? false;
+        return await loadPluginContent(skillName, { includeReferences: includeRefs });
+      }
+      case "list_knowledge": {
+        const { listPlugins } = await import("./plugin-loader.js");
+        const knowledgePlugins = listPlugins();
+        if (knowledgePlugins.length === 0) {
+          return { success: true, output: "No knowledge plugins installed." };
+        }
+        const lines = knowledgePlugins.map(
+          (p) => `${p.name}: ${p.description}\n  Skills: ${p.skills.join(", ")}`
+        );
+        return { success: true, output: lines.join("\n\n") };
+      }
       default: {
         // Try MCP tools first (prefixed names like github_create_issue)
         if (isMcpTool(name)) return await executeMcpTool(name, input);
