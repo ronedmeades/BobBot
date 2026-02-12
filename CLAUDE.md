@@ -123,6 +123,8 @@ bob/
 ├── local/                 # Local-only skills and personal data (gitignored)
 │   └── skills/            # Hot-loadable skill modules (auto-discovered at startup)
 ├── memory/                # Runtime user data — never committed (gitignored)
+│   ├── context.md         # Owner context hot cache (two-tier memory, ~80 lines)
+│   ├── glossary.md        # Full decoder ring — people, terms, projects, shorthand
 │   ├── user-*.json        # Per-user conversation history
 │   ├── profile-*.json     # User profiles (name, preferences, notes)
 │   ├── notes/             # Named notes saved by Bob
@@ -148,7 +150,7 @@ bob/
     ├── config.ts          # Loads .env, validates required keys, multi-provider support
     ├── agent/
     │   ├── core.ts        # THE BRAIN — agentic loop (LLM API + tool dispatch + events)
-    │   ├── memory.ts      # Per-user conversation history + notes (JSON/markdown files)
+    │   ├── memory.ts      # Per-user conversation history + notes + owner context (JSON/markdown files)
     │   ├── tools.ts       # Tool definitions (what the LLM can choose to use)
     │   ├── tool-executor.ts  # Tool dispatch — routes tool calls to skill handlers
     │   ├── tool-loader.ts    # Category-based tool selection (keyword matching)
@@ -256,7 +258,7 @@ Both share conversation history via the owner's user ID.
 1. Receive user message (from Telegram or dashboard)
 2. Emit "message:in" event to event bus
 3. Load conversation history from memory (last 20 messages for context)
-4. Build system prompt + select plugin knowledge (keyword match) + select tools (keyword match)
+4. Load owner context (memory/context.md) + build system prompt + select plugin knowledge + select tools
 5. Send to Claude API with system prompt + tool definitions
 6. If Claude wants to use tools → emit "tool:call", execute, emit "tool:result", loop
 7. Repeat until Claude gives a final text response (max 20 tool rounds)
@@ -636,6 +638,14 @@ A2A endpoints (`/.well-known/agent.json`, `/a2a/*`) use per-peer token auth (sep
 - User profiles in `memory/profile-{id}.json`
 - **All memory is local-only** — gitignored, never committed
 
+**Two-tier context memory (decode-first pattern):**
+- `memory/context.md` — **hot cache** (~80 lines). Compact summary of the owner's world: people, terms, projects, preferences. Loaded into the system prompt on every message via `loadOwnerContext()`. Covers ~90% of daily decoding needs.
+- `memory/glossary.md` — **full decoder ring**. Every person, term, project, and shorthand. Searched via `read_file` when something isn't in context.md. Can grow indefinitely.
+- **Decode-first**: System prompt instructs Bob to resolve all names, nicknames, shorthand, and references against context before acting on any request. Unknown terms → check glossary → ask user → remember.
+- **Organic growth**: No bootstrap/mining — Bob creates context.md and glossary.md naturally as the owner mentions people, terms, and projects. Promotion to hot cache and demotion to glossary-only based on usage frequency.
+- **Additive-only**: Sits alongside existing profile/notes/SQLite memory. Zero changes to existing memory code — just one new `loadOwnerContext()` method and system prompt instructions.
+- Adapted from Anthropic's productivity plugin memory-management pattern, refit for personal agent use case.
+
 ### A2A (Agent-to-Agent) Protocol (src/a2a/)
 
 Bob instances can discover, connect, and communicate with other A2A-compatible agents using
@@ -843,7 +853,7 @@ pnpm test             # Run tests (vitest)
 - [x] Smart Home — Home Assistant integration (15 tools, REST + WebSocket, device monitors)
 - [x] Voice — Telegram voice messages (Whisper STT + edge-tts TTS)
 - [x] Knowledge plugins — Anthropic knowledge-work-plugins integration (11 plugins, 53 skills, tiered injection)
-- [ ] Memory system — Adapt productivity plugin's two-tier memory pattern for Bob
+- [x] Memory system — Two-tier context memory (context.md hot cache + glossary.md decoder ring, decode-first pattern)
 - [ ] Discord server for Bob community
 
 ## Known Issues

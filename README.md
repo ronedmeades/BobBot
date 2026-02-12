@@ -211,13 +211,14 @@ Bob will walk you through the whole process step by step.
 
 ## What Can Bob Do?
 
-Bob has **170+ tools across 35 skill modules**. Here's what he can do out of the box:
+Bob has **170+ tools across 35 skill modules**, plus domain expertise from **11 knowledge plugins**. Here's what he can do out of the box:
 
 **Basics:**
 - **Fetch web pages and APIs** — research topics, check prices, read documentation
 - **Read and write files** — on your computer, wherever you point him
 - **Run shell commands** — install things, run scripts, automate tasks
 - **Remember things** — persistent notes that survive restarts
+- **Learns your world** — Bob builds a mental model of the people, terms, and projects in your life. Say "chase Dave about Elm Street" and Bob knows Dave is your electrician and Elm Street is the rewire job
 
 **Productivity:**
 - **Calendar & events** — schedule meetings, deadlines, recurring events with reminders
@@ -269,6 +270,7 @@ Bob has **170+ tools across 35 skill modules**. Here's what he can do out of the
 - **Background tasks** — hand Bob a task and he works on it autonomously
 - **Environment manager** — safely set API keys and config vars through chat (allowlisted keys only)
 - **MCP servers** — connect to Model Context Protocol servers for plug-and-play tool expansion
+- **Knowledge plugins** — built-in domain expertise for data analytics, finance, sales, legal, marketing, product management, customer support, and more
 - **Analytics** — search conversation history, tool usage stats, event log (SQLite-powered)
 
 **Agent-to-Agent (A2A):**
