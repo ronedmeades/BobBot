@@ -108,6 +108,18 @@ bob/
 ├── medical-records-research-summary.txt  # Vitalos research — kept locally, gitignored
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
+├── knowledge-work-plugins-main/  # Anthropic knowledge-work plugins (Apache 2.0)
+│   ├── data/              # SQL, visualization, dashboards, statistics (7 skills)
+│   ├── finance/           # Journal entries, reconciliation, statements (6 skills)
+│   ├── sales/             # Prospecting, pipeline, outreach (6 skills)
+│   ├── legal/             # Contracts, NDAs, compliance (6 skills)
+│   ├── marketing/         # Content, campaigns, brand voice (5 skills)
+│   ├── product-management/  # PRDs, roadmaps, stakeholder comms (6 skills)
+│   ├── customer-support/  # Tickets, KB articles, escalation (5 skills)
+│   ├── enterprise-search/ # Cross-tool search, synthesis (3 skills)
+│   ├── productivity/      # Task management, memory (2 skills)
+│   ├── bio-research/      # Life sciences R&D (5 skills)
+│   └── cowork-plugin-management/  # Plugin creation/customization (2 skills)
 ├── local/                 # Local-only skills and personal data (gitignored)
 │   └── skills/            # Hot-loadable skill modules (auto-discovered at startup)
 ├── memory/                # Runtime user data — never committed (gitignored)
@@ -138,7 +150,9 @@ bob/
     │   ├── core.ts        # THE BRAIN — agentic loop (LLM API + tool dispatch + events)
     │   ├── memory.ts      # Per-user conversation history + notes (JSON/markdown files)
     │   ├── tools.ts       # Tool definitions (what the LLM can choose to use)
-    │   └── tool-executor.ts  # Tool dispatch — routes tool calls to skill handlers
+    │   ├── tool-executor.ts  # Tool dispatch — routes tool calls to skill handlers
+    │   ├── tool-loader.ts    # Category-based tool selection (keyword matching)
+    │   └── plugin-loader.ts  # Knowledge plugin loader (Anthropic format, tiered injection)
     ├── bot/
     │   └── telegram.ts    # Telegram bot: message handling, /task, /status, lifecycle
     ├── dashboard/
@@ -242,17 +256,18 @@ Both share conversation history via the owner's user ID.
 1. Receive user message (from Telegram or dashboard)
 2. Emit "message:in" event to event bus
 3. Load conversation history from memory (last 20 messages for context)
-4. Send to Claude API with system prompt + tool definitions
-5. If Claude wants to use tools → emit "tool:call", execute, emit "tool:result", loop
-6. Repeat until Claude gives a final text response (max 20 tool rounds)
-7. Save assistant response to memory
-8. Emit "message:out" event
-9. Return response
+4. Build system prompt + select plugin knowledge (keyword match) + select tools (keyword match)
+5. Send to Claude API with system prompt + tool definitions
+6. If Claude wants to use tools → emit "tool:call", execute, emit "tool:result", loop
+7. Repeat until Claude gives a final text response (max 20 tool rounds)
+8. Save assistant response to memory
+9. Emit "message:out" event
+10. Return response
 ```
 
-### Available Tools (~154 built-in across 33 skill modules + dynamic MCP server tools)
+### Available Tools (~156 built-in across 33 skill modules + dynamic MCP server tools + 53 knowledge skills)
 
-**Core Tools (10):**
+**Core Tools (12):**
 | Tool | What It Does |
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
@@ -265,6 +280,8 @@ Both share conversation history via the owner's user ID.
 | `list_notes` | List all saved notes |
 | `update_user_profile` | Update user name, preferences, or notes |
 | `install_skill` | Hot-install a new skill from local/skills/ (no restart needed) |
+| `load_knowledge` | Load domain expertise from a knowledge plugin (SQL guides, accounting standards, etc.) |
+| `list_knowledge` | List all installed knowledge plugins and their available skills |
 
 **Image Processing (5)** — requires `sharp`:
 | Tool | What It Does |
@@ -716,6 +733,53 @@ If `better-sqlite3` isn't installed, everything works in JSON-only mode.
 - `isDbAvailable()` check in every query function — returns empty results if DB not ready
 - Deleting `bob.db` is safe — system continues in JSON-only mode, re-imports on next startup
 
+### Knowledge Plugin System (src/agent/plugin-loader.ts)
+
+Bob integrates Anthropic's knowledge-work plugins — markdown-based domain expertise that gets
+injected into the LLM's context alongside tools. Plugins add **knowledge** (how to think about
+a domain), not **capabilities** (what the LLM can do). Skills handle execution; plugins handle reasoning.
+
+**Architecture:**
+- **Plugin loader** (`src/agent/plugin-loader.ts`) — mirrors `tool-loader.ts` for knowledge instead of tools
+- **Plugin format** — Anthropic's standard: `.claude-plugin/plugin.json` manifest, `skills/*/SKILL.md` with YAML frontmatter, `references/*.md` for deep material
+- **Plugin source** — `knowledge-work-plugins-main/` directory (committed, Apache 2.0)
+- **Initialization** — `initPlugins()` called at startup, scans all plugins, parses frontmatter, builds keyword index
+- **No dependencies** — hand-rolled YAML frontmatter parser, uses only Node built-ins
+
+**Tiered context injection (enforced boundaries):**
+
+| Tier | When | What | Size | Where |
+|------|------|------|------|-------|
+| 1 | Always | Compact domain listing + `load_knowledge` hint | ~200 bytes | System prompt (end) |
+| 2 | Keyword match | Matched skill descriptions (1-2 sentences) | ~200-800 bytes | System prompt (before tool categories) |
+| 3 | `load_knowledge` call | Full SKILL.md body | 2-25KB | Tool result |
+| 4 | `load_knowledge` + `include_references` | SKILL.md + references/*.md | 10-50KB | Tool result |
+
+Tiers 1+2 are system prompt additions (lightweight, capped at 1.5KB). Tiers 3+4 are tool results
+(only when LLM explicitly requests). This prevents context pressure from large reference materials.
+
+**Installed plugins (11 plugins, 53 skills):**
+- **data** (7 skills) — SQL queries, data exploration, visualization, dashboards, statistics, validation, context extraction
+- **finance** (6) — journal entries, reconciliation, financial statements, variance analysis, close management, audit
+- **sales** (6) — account research, call prep, daily briefing, outreach, competitive intel, asset creation
+- **legal** (6) — contract review, NDA triage, compliance, canned responses, risk assessment, meeting briefing
+- **marketing** (5) — content creation, campaign planning, brand voice, competitive analysis, performance analytics
+- **product-management** (6) — feature specs, roadmap, stakeholder comms, user research, competitive analysis, metrics
+- **customer-support** (5) — ticket triage, customer research, response drafting, escalation, knowledge management
+- **enterprise-search** (3) — search strategy, source management, knowledge synthesis
+- **productivity** (2) — task management, memory management
+- **bio-research** (5) — single-cell RNA QC, scvi-tools, Nextflow, instrument data, scientific problem selection
+- **cowork-plugin-management** (2) — plugin creation, plugin customization
+
+**Keyword matching:**
+- Keywords extracted from skill `name` (split on hyphens) + `description` (words >4 chars, stop words removed) + manual overrides
+- Same `message.toLowerCase().includes(keyword)` pattern as tool-loader
+- Max 5 skills matched per message to prevent flooding
+
+**Meta-tools (always loaded, part of core tools):**
+- `load_knowledge` — loads full skill content (Tier 3) or with references (Tier 4). Description explicitly states "This does NOT add new tools"
+- `list_knowledge` — lists all plugins and their skills
+
 ---
 
 ## Development
@@ -778,6 +842,8 @@ pnpm test             # Run tests (vitest)
 
 - [x] Smart Home — Home Assistant integration (15 tools, REST + WebSocket, device monitors)
 - [x] Voice — Telegram voice messages (Whisper STT + edge-tts TTS)
+- [x] Knowledge plugins — Anthropic knowledge-work-plugins integration (11 plugins, 53 skills, tiered injection)
+- [ ] Memory system — Adapt productivity plugin's two-tier memory pattern for Bob
 - [ ] Discord server for Bob community
 
 ## Known Issues
