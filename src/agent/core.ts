@@ -27,7 +27,7 @@ import {
 } from "./tool-loader.js";
 import { selectPluginKnowledgeForMessage } from "./plugin-loader.js";
 
-function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string {
+function buildSystemPrompt(profile: UserProfile | null, notes: string[], ownerContext?: string | null): string {
   const userName = profile?.name ?? "mate";
   const userNotes = profile?.notes ? `\nWhat you know about them: ${profile.notes}` : "";
   const userPrefs = profile?.preferences && Object.keys(profile.preferences).length > 0
@@ -41,7 +41,10 @@ function buildSystemPrompt(profile: UserProfile | null, notes: string[]): string
   return `You are Bob, an autonomous AI personal agent. You help your user by completing tasks independently.
 
 You are talking to ${userName}.${userNotes}${userPrefs}
-
+${ownerContext ? `
+## Your Context
+${ownerContext}
+` : ""}
 Key behaviors:
 - You are proactive, resourceful, and thorough
 - When given a task, you figure out how to do it using your tools
@@ -60,13 +63,35 @@ CRITICAL — Tool usage rules:
 - The ONLY way to take an action is by using a tool. Describing an action in text does NOT make it happen.
 - After using a tool, report what ACTUALLY happened based on the tool's response — not what you assumed would happen.
 
-Memory:
+Memory (two-tier):
 - You have persistent memory that survives restarts
 - Use save_note to remember important information, findings, or task results
 - Use load_note and list_notes to recall what you've previously saved
 - Use update_user_profile when you learn something new about the user (their name, preferences, what they're working on)
 - Be proactive about saving useful information — if you did research or completed a task, save the results
 ${notesList}
+
+Context memory:
+- memory/context.md is your hot cache — a compact summary of the user's world (people, terms, projects, preferences). It's loaded in "Your Context" above.
+- memory/glossary.md is the full decoder ring — every person, term, project, and shorthand. Search it with read_file when something isn't in context.md.
+- DECODE FIRST: Before acting on any request, resolve all names, nicknames, shorthand, and references against your context. If unknown, check memory/glossary.md. If still unknown, ask the user and then remember it.
+- LEARN: When you encounter new people, terms, or projects — add to memory/glossary.md (always), and promote to memory/context.md if frequently referenced.
+- Keep memory/context.md under ~80 lines. Demote stale items to memory/glossary.md only.${!ownerContext ? `
+- You don't have a context.md yet. Create memory/context.md when you learn important context about the user's world. Format:
+  ## People
+  | Who | Role |
+  |-----|------|
+  | **Dave** | Dave Johnson, electrician |
+  ## Terms
+  | Term | Meaning |
+  |------|---------|
+  | MOT | Van testing due March |
+  ## Projects
+  | Name | What |
+  |------|------|
+  | **Elm Street** | Rewire job, Dave leading |
+  ## Preferences
+  - (user preferences here)` : ""}
 
 Available tools let you: fetch URLs, read/write files, list directories, run shell commands, and manage your memory.
 Use them freely to accomplish tasks.
@@ -240,9 +265,10 @@ async function runAgentInner(
   const eventSource = source === "worker" || source === "a2a" ? "dashboard" : source;
   events.emitEvent("message:in", { userId, text: userMessage, source: eventSource });
 
-  // Load user profile and notes for dynamic prompt
+  // Load user profile, notes, and owner context for dynamic prompt
   let profile = await memory.loadProfile(userId);
   const notes = await memory.listNotes();
+  const ownerContext = await memory.loadOwnerContext();
 
   // Auto-create profile if it doesn't exist
   if (!profile) {
@@ -262,7 +288,7 @@ async function runAgentInner(
   }
 
   const isDirectChat = source === "telegram" || source === "dashboard";
-  const baseSysPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes);
+  const baseSysPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes, ownerContext);
   const pluginSection = isDirectChat && !options?.systemPrompt
     ? selectPluginKnowledgeForMessage(userMessage)
     : "";

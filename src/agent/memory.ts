@@ -90,6 +90,16 @@ export const memory = {
     }
   },
 
+  /** Load the owner context hot cache (memory/context.md) */
+  async loadOwnerContext(): Promise<string | null> {
+    const path = join(MEMORY_DIR, "context.md");
+    try {
+      return await readFile(path, "utf-8");
+    } catch {
+      return null;
+    }
+  },
+
   /** Load a user profile */
   async loadProfile(userId: string): Promise<UserProfile | null> {
     const path = join(MEMORY_DIR, `profile-${userId}.json`);
