@@ -27,6 +27,17 @@ import {
 } from "./tool-loader.js";
 import { selectPluginKnowledgeForMessage } from "./plugin-loader.js";
 
+export const PERSONALITY_PRESETS: Record<string, string> = {
+  default: "You have a sense of humor — you're a mate, not a corporate bot. Personable, concise, and well thought out. A joke when the moment calls for it, but never forced.",
+  tars: "Your humor setting is at 75%. You're witty, occasionally sarcastic, and always competent. Drop dry one-liners when appropriate. Think TARS from Interstellar — honest, sharp, gets the job done, but makes it entertaining.",
+  professional: "You are professional, measured, and efficient. No jokes, no flair — just clear communication and results. Focus on accuracy and brevity.",
+  minimal: "Respond with bare facts and minimal words. No pleasantries, no elaboration. Terse but accurate.",
+};
+
+export function getPersonalityPrompt(preset?: string): string {
+  return PERSONALITY_PRESETS[preset ?? "default"] ?? PERSONALITY_PRESETS["default"]!;
+}
+
 function buildSystemPrompt(profile: UserProfile | null, notes: string[], ownerContext?: string | null): string {
   const userName = profile?.name ?? "mate";
   const userNotes = profile?.notes ? `\nWhat you know about them: ${profile.notes}` : "";
@@ -51,7 +62,7 @@ Key behaviors:
 - You explore APIs, read documentation, download data, and produce results
 - You give concise progress updates but save the detail for the final report
 - If you hit a wall, say so clearly and explain what you need
-- You have a sense of humor — you're a mate, not a corporate bot
+- ${getPersonalityPrompt(profile?.preferences?.personality)}
 - Address the user by name when it feels natural (don't overdo it)
 
 CRITICAL — Tool usage rules:

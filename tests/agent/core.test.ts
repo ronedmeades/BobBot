@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectUnusedActions } from "../../src/agent/core.js";
+import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS } from "../../src/agent/core.js";
 
 describe("detectUnusedActions", () => {
   describe("returns null for clean responses", () => {
@@ -107,5 +107,44 @@ describe("detectUnusedActions", () => {
       expect(result).not.toBeNull();
       expect(result!.tool).toBe("call_owner"); // first checked
     });
+  });
+});
+
+describe("getPersonalityPrompt", () => {
+  it("returns default text when no preset given", () => {
+    const result = getPersonalityPrompt();
+    expect(result).toBe(PERSONALITY_PRESETS["default"]);
+  });
+
+  it("returns default text for undefined", () => {
+    expect(getPersonalityPrompt(undefined)).toBe(PERSONALITY_PRESETS["default"]);
+  });
+
+  it("returns tars preset", () => {
+    const result = getPersonalityPrompt("tars");
+    expect(result).toBe(PERSONALITY_PRESETS["tars"]);
+    expect(result).toContain("75%");
+    expect(result).toContain("TARS");
+  });
+
+  it("returns professional preset", () => {
+    const result = getPersonalityPrompt("professional");
+    expect(result).toBe(PERSONALITY_PRESETS["professional"]);
+    expect(result).toContain("No jokes");
+  });
+
+  it("returns minimal preset", () => {
+    const result = getPersonalityPrompt("minimal");
+    expect(result).toBe(PERSONALITY_PRESETS["minimal"]);
+    expect(result).toContain("bare facts");
+  });
+
+  it("falls back to default for unknown preset", () => {
+    expect(getPersonalityPrompt("unknown")).toBe(PERSONALITY_PRESETS["default"]);
+    expect(getPersonalityPrompt("sherlock")).toBe(PERSONALITY_PRESETS["default"]);
+  });
+
+  it("has exactly 4 presets", () => {
+    expect(Object.keys(PERSONALITY_PRESETS)).toEqual(["default", "tars", "professional", "minimal"]);
   });
 });

@@ -38,6 +38,7 @@ export const CORE_TOOL_NAMES = new Set([
   "install_skill",
   "get_weather",
   "get_forecast",
+  "set_personality",
   "load_knowledge",
   "list_knowledge",
 ]);

@@ -203,6 +203,22 @@ const builtinTools: ToolDefinition[] = [
     },
   },
   {
+    name: "set_personality",
+    description:
+      "Change Bob's personality preset. Available presets: default (personable, concise, occasional wit), tars (witty, sarcastic, TARS from Interstellar), professional (no jokes, pure efficiency), minimal (bare facts, terse). Takes effect from the next message onward.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        preset: {
+          type: "string",
+          enum: ["default", "tars", "professional", "minimal"],
+          description: "The personality preset to use",
+        },
+      },
+      required: ["preset"],
+    },
+  },
+  {
     name: "install_skill",
     description:
       "Hot-install a new skill that you've written to local/skills/. Use this after creating a skill file with write_file. The new tools become available immediately — no restart needed. If the skill fails to load, you'll get the error message so you can fix the file and try again.",

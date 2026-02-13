@@ -288,6 +288,18 @@ export async function executeTool(
         return await handleListNotes();
       case "update_user_profile":
         return await handleUpdateUserProfile(input, context);
+      case "set_personality": {
+        const preset = input.preset as string;
+        const validPresets = ["default", "tars", "professional", "minimal"];
+        if (!validPresets.includes(preset)) {
+          return { success: false, output: `Unknown preset. Available: ${validPresets.join(", ")}` };
+        }
+        const personalityProfile = await memory.loadProfile(context?.userId ?? "owner");
+        if (!personalityProfile) return { success: false, output: "Profile not found" };
+        personalityProfile.preferences.personality = preset;
+        await memory.saveProfile(personalityProfile);
+        return { success: true, output: `Personality set to "${preset}". I'll use this style from next message onward.` };
+      }
       case "install_skill":
         return await handleInstallSkill(input);
       // Image processing skills
