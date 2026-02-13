@@ -548,97 +548,95 @@ export async function handleGetEbayListingStatus(input: Record<string, unknown>)
   };
 }
 
-// --- Get seller listings ---
+// --- Get seller listings (Trading API — sees ALL listings, not just API-created) ---
+
+async function getListingsViaTrading(token: string, limit: number): Promise<ToolResult> {
+  const tradingBody = `<?xml version="1.0" encoding="utf-8"?>
+<GetMyeBaySellingRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <ActiveList>
+    <Pagination>
+      <EntriesPerPage>${limit}</EntriesPerPage>
+    </Pagination>
+  </ActiveList>
+  <ErrorLanguage>en_US</ErrorLanguage>
+  <WarningLevel>Low</WarningLevel>
+</GetMyeBaySellingRequest>`;
+
+  const response = await fetch("https://api.ebay.com/ws/api.dll", {
+    method: "POST",
+    headers: {
+      "Content-Type": "text/xml",
+      "X-EBAY-API-SITEID": "0",
+      "X-EBAY-API-COMPATIBILITY-LEVEL": "967",
+      "X-EBAY-API-CALL-NAME": "GetMyeBaySelling",
+      "X-EBAY-API-IAF-TOKEN": token,
+    },
+    body: tradingBody,
+  });
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    return { success: false, output: `Trading API failed (${response.status}): ${text.substring(0, 500)}` };
+  }
+
+  // Check for API-level errors
+  const ackMatch = text.match(/<Ack>(.*?)<\/Ack>/);
+  if (ackMatch && ackMatch[1] === "Failure") {
+    const errMsg = text.match(/<ShortMessage>(.*?)<\/ShortMessage>/)?.[1] ?? "Unknown error";
+    const errDetail = text.match(/<LongMessage>(.*?)<\/LongMessage>/)?.[1] ?? "";
+    return { success: false, output: `eBay error: ${errMsg}${errDetail ? " — " + errDetail : ""}` };
+  }
+
+  // Parse active listings from XML
+  const activeMatch = text.match(/<ActiveList>([\s\S]*?)<\/ActiveList>/);
+  if (!activeMatch) {
+    return { success: true, output: "No active listings found." };
+  }
+
+  const totalMatch = activeMatch[1].match(/<TotalNumberOfEntries>(\d+)<\/TotalNumberOfEntries>/);
+  const total = totalMatch ? parseInt(totalMatch[1]) : 0;
+  const items = [...activeMatch[1].matchAll(/<Item>([\s\S]*?)<\/Item>/g)];
+
+  if (items.length === 0) {
+    return { success: true, output: "No active listings found." };
+  }
+
+  const getTag = (xml: string, tag: string): string => {
+    const m = xml.match(new RegExp(`<${tag}>(.*?)</${tag}>`));
+    return m ? m[1] : "";
+  };
+
+  const listings = items.map((item, i) => {
+    const xml = item[1];
+    const itemId = getTag(xml, "ItemID");
+    const title = getTag(xml, "Title");
+    const price = getTag(xml, "CurrentPrice");
+    const quantity = getTag(xml, "QuantityAvailable") || getTag(xml, "Quantity");
+    const watchCount = getTag(xml, "WatchCount");
+    const listingType = getTag(xml, "ListingType");
+    const viewUrl = `https://www.ebay.com/itm/${itemId}`;
+
+    let line = `${i + 1}. ${title}\n   ItemID: ${itemId} | Price: $${price} | Qty: ${quantity}`;
+    if (watchCount) line += ` | Watchers: ${watchCount}`;
+    if (listingType) line += ` | Type: ${listingType}`;
+    line += `\n   ${viewUrl}`;
+    return line;
+  });
+
+  return {
+    success: true,
+    output: `Active listings (${items.length} of ${total} total):\n\n${listings.join("\n\n")}`,
+  };
+}
 
 export async function handleGetSellerListings(input: Record<string, unknown>): Promise<ToolResult> {
   const ebayConfig = getEbayConfig();
   const token = await getAccessToken(ebayConfig);
-  const baseUrl = getBaseUrl(ebayConfig.environment);
   const limit = Math.min((input.limit as number) ?? 25, 200);
-  const offset = (input.offset as number) ?? 0;
 
-  const invResponse = await fetch(
-    `${baseUrl}/sell/inventory/v1/inventory_item?limit=${limit}&offset=${offset}`,
-    {
-      headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
-    }
-  );
-
-  if (!invResponse.ok) {
-    const text = await invResponse.text();
-    return { success: false, output: `Failed to fetch inventory: ${text}` };
-  }
-
-  const invData = (await invResponse.json()) as {
-    total: number;
-    inventoryItems?: Array<{
-      sku: string;
-      product?: { title?: string; description?: string };
-      availability?: { shipToLocationAvailability?: { quantity?: number } };
-    }>;
-  };
-
-  if (!invData.inventoryItems || invData.inventoryItems.length === 0) {
-    return { success: true, output: "No active inventory items found." };
-  }
-
-  const listings: Array<{
-    sku: string;
-    title: string;
-    price: string;
-    offerId: string;
-    quantity: number;
-  }> = [];
-
-  for (const item of invData.inventoryItems) {
-    try {
-      const offerResponse = await fetch(
-        `${baseUrl}/sell/inventory/v1/offer?sku=${encodeURIComponent(item.sku)}`,
-        {
-          headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
-        }
-      );
-
-      if (offerResponse.ok) {
-        const offerData = (await offerResponse.json()) as {
-          offers?: Array<{
-            offerId: string;
-            pricingSummary?: { price?: { value?: string; currency?: string } };
-            availableQuantity?: number;
-          }>;
-        };
-
-        const offer = offerData.offers?.[0];
-        listings.push({
-          sku: item.sku,
-          title: item.product?.title ?? "(no title)",
-          price: offer?.pricingSummary?.price?.value ?? "?",
-          offerId: offer?.offerId ?? "",
-          quantity: offer?.availableQuantity ?? item.availability?.shipToLocationAvailability?.quantity ?? 0,
-        });
-      }
-    } catch {
-      listings.push({
-        sku: item.sku,
-        title: item.product?.title ?? "(no title)",
-        price: "?",
-        offerId: "",
-        quantity: 0,
-      });
-    }
-  }
-
-  const formatted = listings
-    .map(
-      (l, i) =>
-        `${i + 1}. [${l.sku}] ${l.title}\n   Price: $${l.price} | Qty: ${l.quantity} | Offer: ${l.offerId}`
-    )
-    .join("\n");
-
-  return {
-    success: true,
-    output: `Active listings (${listings.length} of ${invData.total} total, offset ${offset}):\n\n${formatted}`,
-  };
+  // Use Trading API — sees ALL listings (website-created + API-created)
+  return getListingsViaTrading(token, limit);
 }
 
 // --- Update existing listing ---
