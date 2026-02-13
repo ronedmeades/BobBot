@@ -157,7 +157,7 @@ const STOP_WORDS = new Set([
  * Handles both single-line descriptions and multi-line block scalars (>).
  * No YAML library needed — the format is simple and consistent.
  */
-function parseFrontmatter(
+export function parseFrontmatter(
   content: string
 ): { name: string; description: string } | null {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -200,7 +200,7 @@ function parseFrontmatter(
  * Extract keywords from a skill name + description.
  * Combines: name parts (split on hyphens) + description words + overrides.
  */
-function extractKeywords(name: string, description: string): string[] {
+export function extractKeywords(name: string, description: string): string[] {
   const keywords = new Set<string>();
 
   // From skill name: "sql-queries" → ["sql", "queries"]

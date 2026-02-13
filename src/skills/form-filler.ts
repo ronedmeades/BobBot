@@ -85,7 +85,7 @@ const FIELD_ALIASES: Array<{ patterns: string[]; category: string; field: string
   { patterns: ["prior year agi", "previous year agi", "last year agi", "adjusted gross income", "agi"], category: "tax", field: "prior_year_agi" },
 ];
 
-function normalize(s: string): string {
+export function normalize(s: string): string {
   return s
     .toLowerCase()
     .trim()

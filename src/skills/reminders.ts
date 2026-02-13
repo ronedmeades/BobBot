@@ -54,7 +54,7 @@ async function saveReminders(reminders: Reminder[]): Promise<void> {
 // Natural language time parsing
 // ---------------------------------------------------------------------------
 
-function parseWhen(when: string): Date | null {
+export function parseWhen(when: string): Date | null {
   const now = new Date();
 
   // ISO date
@@ -137,7 +137,7 @@ function parseWhen(when: string): Date | null {
   return null;
 }
 
-function parseSnoozeDuration(duration: string): number {
+export function parseSnoozeDuration(duration: string): number {
   const lower = duration.toLowerCase().trim();
 
   const match = lower.match(/^(\d+)\s*(minute|min|hour|hr|day)s?$/);
@@ -153,7 +153,7 @@ function parseSnoozeDuration(duration: string): number {
   return 60 * 60 * 1000;
 }
 
-function formatReminder(r: Reminder): string {
+export function formatReminder(r: Reminder): string {
   const date = new Date(r.snoozed_until ?? r.remind_at);
   const now = new Date();
   const diff = date.getTime() - now.getTime();

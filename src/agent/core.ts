@@ -211,7 +211,7 @@ export async function runAgent(
  * Detect when the LLM claims to have taken an action without using the tool.
  * Returns the first match found, or null if the response is clean.
  */
-function detectUnusedActions(
+export function detectUnusedActions(
   text: string,
   usedTools: string[]
 ): { claim: string; tool: string } | null {
