@@ -264,6 +264,7 @@ Bob has **170+ tools across 35 skill modules**, plus domain expertise from **11 
 - **Real-time state** — WebSocket connection for instant state change awareness, REST API fallback
 
 **System:**
+- **Personality presets** — switch Bob's style: `default` (personable mate), `tars` (witty, sarcastic — 75% humor setting), `professional` (no jokes), `minimal` (bare facts). Just say *"set personality to tars"*
 - **File organizer** — scan folders, organize by type or date, find duplicates
 - **Browser automation** — navigate pages, click, type, screenshot (needs `playwright`)
 - **Backups** — auto-backup to an external drive on a schedule
