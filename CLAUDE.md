@@ -199,7 +199,7 @@ bob/
     │   ├── events.ts      # Global event bus — typed EventEmitter + 50-event ring buffer
     │   ├── server.ts      # HTTP server (Node built-in) — API routes + SSE + image serving
     │   └── public/
-    │       └── index.html # Single-file dashboard UI (vanilla HTML/CSS/JS, dark theme, inline images)
+    │       └── index.html # Single-file dashboard UI (vanilla HTML/CSS/JS, dark theme, message queue)
     ├── providers/
     │   ├── types.ts       # Provider-agnostic LLM interfaces (ToolDefinition, ChatOptions, VisionOptions)
     │   ├── factory.ts     # Provider factory — creates cached provider instances
@@ -283,7 +283,7 @@ bob/
 ### Two Interaction Modes
 
 1. **Direct chat (Telegram)** — User sends a message, Bob responds inline.
-2. **Direct chat (Dashboard)** — Browser chat panel at `http://localhost:3000`.
+2. **Direct chat (Dashboard)** — Browser chat panel at `http://localhost:3000`. Non-blocking input with message queue — type multiple messages while Bob thinks, they execute sequentially (FIFO). Queue indicator shows pending count.
 
 Both share conversation history via the owner's user ID.
 
