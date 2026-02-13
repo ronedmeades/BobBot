@@ -257,7 +257,7 @@
     flex-shrink: 0;
   }
 
-  .chat-input input {
+  .chat-input textarea {
     flex: 1;
     padding: 8px 12px;
     border: 1px solid #30363d;
@@ -267,9 +267,14 @@
     font-family: inherit;
     font-size: 13px;
     outline: none;
+    resize: vertical;
+    min-height: 38px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.4;
   }
 
-  .chat-input input:focus { border-color: #58a6ff; }
+  .chat-input textarea:focus { border-color: #58a6ff; }
 
   .chat-input button {
     padding: 8px 16px;
@@ -445,7 +450,7 @@
     <div class="panel-header">Chat with Bob</div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input">
-      <input type="text" id="chat-input" placeholder="Message Bob..." onkeydown="if(event.key==='Enter')sendMessage()" />
+      <textarea id="chat-input" placeholder="Message Bob... (Enter to send, Shift+Enter for new line)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,200)+'px'"></textarea>
       <button id="send-btn" onclick="sendMessage()">Send</button>
     </div>
   </div>
@@ -762,6 +767,7 @@
     if (!text) return;
 
     input.value = '';
+    input.style.height = 'auto';
     addChatBubble('user', text);
 
     const thinking = addChatBubble('thinking', 'Thinking...');
