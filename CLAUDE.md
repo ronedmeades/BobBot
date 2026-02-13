@@ -289,7 +289,7 @@ Both share conversation history via the owner's user ID.
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
 | `read_file` | Read local files (with credential blocklist protection) |
-| `write_file` | Write files (creates directories automatically) |
+| `write_file` | Write files (creates directories automatically, credential paths blocked — use `set_env_var`) |
 | `list_directory` | List contents of a directory |
 | `run_command` | Execute shell commands (with timeout) |
 | `save_note` | Save a named note to persistent memory |
@@ -866,7 +866,7 @@ Tests focus on exported pure functions — no network calls, no heavy mocking (e
 - No open skill/plugin marketplace — all skills are vetted first-party code
 - **API token authentication** — all dashboard/API endpoints require `BOB_API_TOKEN`
 - **Telegram owner check** — only `OWNER_USER_ID` can interact with the bot
-- **Credential blocklist** — `read_file` blocks access to `.env`, `.ssh/`, `.gnupg/`, credentials files
+- **Credential blocklist** — `read_file` and `write_file` both block `.env`, `.ssh/`, `.gnupg/`, credentials files. Credentials must go through `set_env_var` (allowlisted keys only)
 - Credentials stored in `.env` (gitignored, never committed)
 - User memory and profiles stored locally in `memory/` (gitignored)
 - Tool execution has timeouts and output size limits
