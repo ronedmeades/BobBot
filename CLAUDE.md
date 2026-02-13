@@ -642,8 +642,9 @@ A2A endpoints (`/.well-known/agent.json`, `/a2a/*`) use per-peer token auth (sep
 - `memory/context.md` — **hot cache** (~80 lines). Compact summary of the owner's world: people, terms, projects, preferences. Loaded into the system prompt on every message via `loadOwnerContext()`. Covers ~90% of daily decoding needs.
 - `memory/glossary.md` — **full decoder ring**. Every person, term, project, and shorthand. Searched via `read_file` when something isn't in context.md. Can grow indefinitely.
 - **Decode-first**: System prompt instructs Bob to resolve all names, nicknames, shorthand, and references against context before acting on any request. Unknown terms → check glossary → ask user → remember.
-- **Organic growth**: No bootstrap/mining — Bob creates context.md and glossary.md naturally as the owner mentions people, terms, and projects. Promotion to hot cache and demotion to glossary-only based on usage frequency.
-- **Additive-only**: Sits alongside existing profile/notes/SQLite memory. Zero changes to existing memory code — just one new `loadOwnerContext()` method and system prompt instructions.
+- **Auto-seeded on first boot**: `memory.initOwnerContext()` in `index.ts` creates empty `context.md` and `glossary.md` at startup if they don't exist. Only the owner's name (from `OWNER_NAME`) appears in the heading — no seed data, Bob learns everything organically from conversations.
+- **Organic growth**: Bob populates context.md and glossary.md naturally as the owner mentions people, terms, and projects. Promotion to hot cache and demotion to glossary-only based on usage frequency.
+- **Additive-only**: Sits alongside existing profile/notes/SQLite memory. `loadOwnerContext()` reads the hot cache, `initOwnerContext()` seeds on first run.
 - Adapted from Anthropic's productivity plugin memory-management pattern, refit for personal agent use case.
 
 ### A2A (Agent-to-Agent) Protocol (src/a2a/)
