@@ -37,6 +37,7 @@ const ALLOWED_KEYS = new Set([
   "EBAY_CLIENT_SECRET",
   "EBAY_REFRESH_TOKEN",
   "EBAY_ENVIRONMENT",
+  "EBAY_RUNAME",
 
   // Gmail
   "GMAIL_CLIENT_ID",
@@ -211,8 +212,8 @@ export async function handleListEnvKeys(
     dashboard: { keys: ["BOB_API_TOKEN", "DASHBOARD_PORT"] },
     backup: { keys: ["BACKUP_PATH", "BACKUP_INTERVAL_DAYS"] },
     ebay: {
-      keys: ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_REFRESH_TOKEN", "EBAY_ENVIRONMENT"],
-      hint: "Set EBAY_ENVIRONMENT to 'sandbox' or 'production'. Same keys for both — just update the values.",
+      keys: ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_REFRESH_TOKEN", "EBAY_ENVIRONMENT", "EBAY_RUNAME"],
+      hint: "Set EBAY_ENVIRONMENT to 'sandbox' or 'production'. Same keys for both — just update the values. EBAY_RUNAME is the redirect URI name for OAuth setup.",
     },
     gmail: {
       keys: ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"],

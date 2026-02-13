@@ -15,6 +15,7 @@ export interface EbayConfig {
   clientSecret: string;
   refreshToken: string;
   environment: "sandbox" | "production";
+  ruName?: string;
 }
 
 export function getEbayConfig(): EbayConfig {
@@ -29,7 +30,9 @@ export function getEbayConfig(): EbayConfig {
     );
   }
 
-  return { clientId, clientSecret, refreshToken, environment };
+  const ruName = process.env.EBAY_RUNAME ?? "";
+
+  return { clientId, clientSecret, refreshToken, environment, ruName };
 }
 
 export function getBaseUrl(env: "sandbox" | "production"): string {
