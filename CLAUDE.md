@@ -343,7 +343,7 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 | `add_watermark` | Overlay text watermark on images |
 | `auto_crop` | Trim whitespace/borders from images |
 
-**eBay Listing (8)** — requires eBay API credentials:
+**eBay Listing (8)** — requires eBay API credentials (`EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_REFRESH_TOKEN`, `EBAY_ENVIRONMENT`, optional `EBAY_RUNAME` for OAuth setup):
 | Tool | What It Does |
 |------|-------------|
 | `create_ebay_listing` | Create a fixed-price listing via Inventory API |
@@ -566,8 +566,8 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 **Environment Management (2):**
 | Tool | What It Does |
 |------|-------------|
-| `set_env_var` | Safely add/update a single env var in .env (allowlisted keys only) |
-| `list_env_keys` | Show which env vars are set vs missing (never reveals values) |
+| `set_env_var` | Safely add/update a single env var in .env (allowlisted keys only, hot-reloads into process.env) |
+| `list_env_keys` | Show which env vars are set vs missing (never reveals values, includes per-category usage hints) |
 
 **Standing Rules — Marketplace Monitoring (4):**
 | Tool | What It Does |
