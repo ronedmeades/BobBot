@@ -67,6 +67,29 @@ Waiting for Telegram messages...
 
 ---
 
+## Standard Operating Procedure
+
+Every change follows these six stages:
+
+1. **Agree on the task** - Discuss intent. Claude enters plan mode for anything non-trivial.
+2. **Approve the plan** - User reviews planned changes and approves before any code is written.
+3. **Create a feature branch** - Branch from main (e.g. `feature/geometry-book-1`). Never work directly on main.
+4. **Implement and commit** - Make changes and commit to the feature branch.
+5. **Review and test** - User reviews with `git diff main`, builds, and tests.
+6. **User merges** - Only the user decides when to merge to main.
+
+Rules:
+- Never push to remote without explicit instruction
+- Never commit to main directly
+- Never skip plan mode for non-trivial changes
+- Never amend previous commits unless explicitly asked
+- Always wait for user approval before writing code
+
+Shortcuts:
+- **"ship it public"** — Commit all staged changes to main and push to GitHub (combines commit, merge to main, and git push in one step)
+
+---
+
 ## Tech Stack
 
 ### Dependencies
@@ -266,6 +289,16 @@ Both share conversation history via the owner's user ID.
 
 3. **Background task** — User sends `/task <description>` via Telegram, Bob immediately
    replies "On it", runs the work asynchronously, and texts back when done.
+
+### System Prompt Guardrails (src/agent/core.ts)
+
+Bob's `buildSystemPrompt()` injects several runtime guardrails:
+
+- **Platform awareness** — Detects `process.platform` and tells Bob to use Windows commands (findstr, PowerShell) instead of Unix (grep, ls, cat). Also reminds that the project is ESM (`import`, not `require`).
+- **Tool usage rules** — CRITICAL section forbidding hallucinated actions (must actually call tools, not just describe them). Covered: calls, SMS, calendar, reminders, emails.
+- **No test file litter** — Bob must use `node -e "..."` or skill tools, not create temp scripts in the project root.
+- **Credential guidance** — Bob cannot read `.env` directly. Must use `list_env_keys` to check and `set_env_var` to update.
+- **Hallucination guard** — `detectUnusedActions()` catches claims without tool calls, re-enters agent loop with correction prompt.
 
 ### Agent Loop (src/agent/core.ts)
 
