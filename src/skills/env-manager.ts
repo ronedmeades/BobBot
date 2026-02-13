@@ -72,10 +72,11 @@ export const envManagerToolDefinitions: ToolDefinition[] = [
     name: "set_env_var",
     description:
       "Safely add or update a single environment variable in the .env file. " +
-      "Only known Bob configuration keys are allowed (e.g. GMAIL_CLIENT_ID, EBAY_CLIENT_SECRET, " +
-      "TELEGRAM_BOT_TOKEN, etc.). This NEVER reads or returns other values from .env — it only " +
-      "updates the specified key. Use this when a user provides an API key, token, or credential " +
-      "and wants Bob to save it. Note: Bob must be restarted for new env vars to take effect.",
+      "IMPORTANT: Only pre-defined key names are accepted — do NOT invent new key names. " +
+      "Call list_env_keys first to see all valid key names. " +
+      "For eBay: use EBAY_CLIENT_ID, EBAY_CLIENT_SECRET, EBAY_REFRESH_TOKEN, EBAY_ENVIRONMENT. " +
+      "Set EBAY_ENVIRONMENT to 'sandbox' or 'production' — same keys, just update the values. " +
+      "Changes take effect immediately (no restart needed).",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -144,15 +145,17 @@ export async function handleSetEnvVar(
   }
 
   if (!ALLOWED_KEYS.has(key)) {
-    const suggestions = [...ALLOWED_KEYS]
-      .filter((k) => k.includes(key) || key.includes(k.split("_").pop() ?? ""))
-      .slice(0, 5);
-    const hint = suggestions.length > 0
-      ? `\n\nDid you mean: ${suggestions.join(", ")}?`
-      : `\n\nAllowed keys include: ${[...ALLOWED_KEYS].slice(0, 10).join(", ")}, ...`;
+    // Find all allowed keys with matching service prefix (e.g. EBAY_, GMAIL_)
+    const prefix = key.split("_").slice(0, 1)[0]; // e.g. "EBAY" from "EBAY_PROD_CLIENT_ID"
+    const serviceKeys = [...ALLOWED_KEYS].filter((k) => k.startsWith(prefix + "_"));
+    const hint = serviceKeys.length > 0
+      ? `\n\nValid ${prefix} keys: ${serviceKeys.join(", ")}`
+      : `\n\nUse list_env_keys to see all valid key names.`;
     return {
       success: false,
-      output: `"${key}" is not a recognized Bob configuration key. Only known keys can be set for security.${hint}`,
+      output:
+        `"${key}" is not a valid key. Do NOT invent new key names — only pre-defined keys are accepted.${hint}\n\n` +
+        "To switch environments (e.g. sandbox→production), update EBAY_ENVIRONMENT — do not create separate keys.",
     };
   }
 
@@ -202,21 +205,31 @@ export async function handleListEnvKeys(
 ): Promise<ToolResult> {
   const category = (input.category as string) ?? "all";
 
-  const categories: Record<string, string[]> = {
-    core: ["LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL", "OWNER_NAME", "OWNER_TIMEZONE", "ANTHROPIC_API_KEY"],
-    telegram: ["TELEGRAM_BOT_TOKEN", "OWNER_USER_ID"],
-    dashboard: ["BOB_API_TOKEN", "DASHBOARD_PORT"],
-    backup: ["BACKUP_PATH", "BACKUP_INTERVAL_DAYS"],
-    ebay: ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_REFRESH_TOKEN", "EBAY_ENVIRONMENT"],
-    gmail: ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"],
-    google_calendar: ["GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "GOOGLE_CALENDAR_REFRESH_TOKEN"],
-    etsy: ["ETSY_API_KEY", "ETSY_SHARED_SECRET", "ETSY_REFRESH_TOKEN", "ETSY_SHOP_ID"],
-    twilio: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "OWNER_PHONE_NUMBER"],
+  const categories: Record<string, { keys: string[]; hint?: string }> = {
+    core: { keys: ["LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL", "OWNER_NAME", "OWNER_TIMEZONE", "ANTHROPIC_API_KEY"] },
+    telegram: { keys: ["TELEGRAM_BOT_TOKEN", "OWNER_USER_ID"] },
+    dashboard: { keys: ["BOB_API_TOKEN", "DASHBOARD_PORT"] },
+    backup: { keys: ["BACKUP_PATH", "BACKUP_INTERVAL_DAYS"] },
+    ebay: {
+      keys: ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "EBAY_REFRESH_TOKEN", "EBAY_ENVIRONMENT"],
+      hint: "Set EBAY_ENVIRONMENT to 'sandbox' or 'production'. Same keys for both — just update the values.",
+    },
+    gmail: {
+      keys: ["GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN"],
+      hint: "OAuth2 credentials from Google Cloud Console.",
+    },
+    google_calendar: {
+      keys: ["GOOGLE_CALENDAR_CLIENT_ID", "GOOGLE_CALENDAR_CLIENT_SECRET", "GOOGLE_CALENDAR_REFRESH_TOKEN"],
+      hint: "Falls back to Gmail credentials if not set separately.",
+    },
+    etsy: { keys: ["ETSY_API_KEY", "ETSY_SHARED_SECRET", "ETSY_REFRESH_TOKEN", "ETSY_SHOP_ID"] },
+    twilio: { keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "OWNER_PHONE_NUMBER"] },
   };
 
+  const cat = category === "all" ? null : categories[category];
   const keysToCheck = category === "all"
     ? [...ALLOWED_KEYS]
-    : categories[category] ?? [];
+    : cat?.keys ?? [];
 
   if (keysToCheck.length === 0) {
     return { success: false, output: `Unknown category: "${category}". Use: ${Object.keys(categories).join(", ")}` };
@@ -240,18 +253,21 @@ export async function handleListEnvKeys(
 
   if (category === "all") {
     // Group by category
-    for (const [catName, catKeys] of Object.entries(categories)) {
-      const catLines = catKeys.map((k) => {
+    for (const [catName, catInfo] of Object.entries(categories)) {
+      const catLines = catInfo.keys.map((k) => {
         const isSet = setKeys.has(k);
         return `  ${isSet ? "[SET]" : "[   ]"} ${k}`;
       });
-      results.push(`${catName.toUpperCase()}:\n${catLines.join("\n")}`);
+      let section = `${catName.toUpperCase()}:\n${catLines.join("\n")}`;
+      if (catInfo.hint) section += `\n  Note: ${catInfo.hint}`;
+      results.push(section);
     }
   } else {
     for (const k of keysToCheck) {
       const isSet = setKeys.has(k);
       results.push(`${isSet ? "[SET]" : "[   ]"} ${k}`);
     }
+    if (cat?.hint) results.push(`\nNote: ${cat.hint}`);
   }
 
   return {
