@@ -723,7 +723,7 @@ async function handleFetchUrl(input: Record<string, unknown>): Promise<ToolResul
   };
 }
 
-// Credential files that should never be read (defense against prompt injection exfiltration)
+// Credential files that should never be read/written directly (use set_env_var for .env)
 const BLOCKED_PATHS = [
   /[/\\]\.env$/i,
   /[/\\]\.env\..+$/i,
@@ -752,6 +752,16 @@ async function handleReadFile(input: Record<string, unknown>): Promise<ToolResul
 async function handleWriteFile(input: Record<string, unknown>): Promise<ToolResult> {
   const path = resolve(input.path as string);
   const content = input.content as string;
+
+  // Block writing to .env files — credentials must go through set_env_var
+  if (isBlockedPath(path)) {
+    return {
+      success: false,
+      output:
+        "Access denied — cannot write to credential files directly. " +
+        "Use the set_env_var tool to store API keys and credentials in .env.",
+    };
+  }
 
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, content, "utf-8");
