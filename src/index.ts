@@ -15,6 +15,7 @@ async function main(): Promise<void> {
 
   validateConfig();
   await memory.init();
+  await memory.initOwnerContext(config.owner.name);
 
   // Initialize SQLite database (before tools, so dual-write is ready)
   const { initDb } = await import("./db/database.js");

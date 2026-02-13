@@ -100,6 +100,26 @@ export const memory = {
     }
   },
 
+  /** Seed context.md and glossary.md on first run if they don't exist */
+  async initOwnerContext(ownerName: string): Promise<void> {
+    const contextPath = join(MEMORY_DIR, "context.md");
+    const glossaryPath = join(MEMORY_DIR, "glossary.md");
+
+    try {
+      await readFile(contextPath, "utf-8");
+    } catch {
+      await writeFile(contextPath, `# ${ownerName}'s Context\n\n## People\n\n## Terms\n\n## Projects\n\n## Preferences\n`, "utf-8");
+      console.log("Seeded memory/context.md");
+    }
+
+    try {
+      await readFile(glossaryPath, "utf-8");
+    } catch {
+      await writeFile(glossaryPath, `# ${ownerName}'s Glossary\n\n## People\n\n## Terms & Shorthand\n\n## Projects\n\n## Places\n`, "utf-8");
+      console.log("Seeded memory/glossary.md");
+    }
+  },
+
   /** Load a user profile */
   async loadProfile(userId: string): Promise<UserProfile | null> {
     const path = join(MEMORY_DIR, `profile-${userId}.json`);
