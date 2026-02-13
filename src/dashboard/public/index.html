@@ -291,6 +291,15 @@
   .chat-input button:hover { background: #2ea043; }
   .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  .queue-indicator {
+    font-size: 11px;
+    color: #58a6ff;
+    padding: 2px 8px;
+    text-align: right;
+    display: none;
+  }
+  .queue-indicator.visible { display: block; }
+
   /* Task bar */
   .task-bar {
     display: flex;
@@ -449,6 +458,7 @@
   <div class="chat" id="chat-panel">
     <div class="panel-header">Chat with Bob</div>
     <div class="chat-messages" id="chat-messages"></div>
+    <div class="queue-indicator" id="queue-indicator"></div>
     <div class="chat-input">
       <textarea id="chat-input" placeholder="Message Bob... (Enter to send, Shift+Enter for new line)" rows="3" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
       <button id="send-btn" onclick="sendMessage()">Send</button>
@@ -761,42 +771,65 @@
     return div;
   }
 
-  async function sendMessage() {
+  // --- Message queue (non-blocking input) ---
+  const messageQueue = [];
+  let isProcessing = false;
+
+  function updateQueueIndicator() {
+    const el = document.getElementById('queue-indicator');
+    if (messageQueue.length > 0) {
+      el.textContent = messageQueue.length + ' queued';
+      el.classList.add('visible');
+    } else {
+      el.classList.remove('visible');
+    }
+  }
+
+  function sendMessage() {
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
     if (!text) return;
 
     input.value = '';
     addChatBubble('user', text);
+    messageQueue.push(text);
+    updateQueueIndicator();
 
-    const thinking = addChatBubble('thinking', 'Thinking...');
-    thinking.id = 'thinking-bubble';
-    const sendBtn = document.getElementById('send-btn');
-    sendBtn.disabled = true;
-    input.disabled = true;
+    if (!isProcessing) processQueue();
+  }
 
-    try {
-      const r = await authFetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text }),
-      });
-      const data = await r.json();
-      thinking.remove();
+  async function processQueue() {
+    if (isProcessing || messageQueue.length === 0) return;
+    isProcessing = true;
 
-      if (data.error) {
-        addChatBubble('assistant', `Error: ${data.error}`);
-      } else {
-        addChatBubble('assistant', data.text);
+    while (messageQueue.length > 0) {
+      const text = messageQueue.shift();
+      updateQueueIndicator();
+
+      const thinking = addChatBubble('thinking', 'Thinking...');
+
+      try {
+        const r = await authFetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await r.json();
+        thinking.remove();
+
+        if (data.error) {
+          addChatBubble('assistant', 'Error: ' + data.error);
+        } else {
+          addChatBubble('assistant', data.text);
+        }
+      } catch (e) {
+        thinking.remove();
+        addChatBubble('assistant', 'Error: ' + e.message);
       }
-    } catch (e) {
-      thinking.remove();
-      addChatBubble('assistant', `Error: ${e.message}`);
-    } finally {
-      sendBtn.disabled = false;
-      input.disabled = false;
-      input.focus();
     }
+
+    isProcessing = false;
+    updateQueueIndicator();
   }
 
   // --- Agent session tracking ---
