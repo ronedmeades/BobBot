@@ -450,7 +450,7 @@
     <div class="panel-header">Chat with Bob</div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input">
-      <textarea id="chat-input" placeholder="Message Bob... (Enter to send, Shift+Enter for new line)" rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,200)+'px'"></textarea>
+      <textarea id="chat-input" placeholder="Message Bob... (Enter to send, Shift+Enter for new line)" rows="3" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
       <button id="send-btn" onclick="sendMessage()">Send</button>
     </div>
   </div>
@@ -767,7 +767,6 @@
     if (!text) return;
 
     input.value = '';
-    input.style.height = 'auto';
     addChatBubble('user', text);
 
     const thinking = addChatBubble('thinking', 'Thinking...');
