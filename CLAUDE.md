@@ -108,6 +108,21 @@ bob/
 ├── medical-records-research-summary.txt  # Vitalos research — kept locally, gitignored
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
+├── vitest.config.ts       # Test runner config (ESM, node environment)
+├── tests/                 # Test suite (160 tests across 9 files)
+│   ├── config.test.ts             # Config defaults, validateConfig
+│   ├── agent/
+│   │   ├── core.test.ts           # Hallucination guard (detectUnusedActions)
+│   │   ├── tool-loader.test.ts    # Category-based tool selection, keyword matching
+│   │   └── plugin-loader.test.ts  # YAML frontmatter parsing, keyword extraction
+│   ├── skills/
+│   │   ├── reminders.test.ts      # Natural language time parsing, snooze, formatting
+│   │   └── form-filler.test.ts    # Field normalization, fuzzy vault matching
+│   ├── tasks/
+│   │   ├── busy-state.test.ts     # State transitions, preemption lifecycle
+│   │   └── escalation.test.ts     # Channel filtering, dedup, interaction tracking
+│   └── a2a/
+│       └── public-skills.test.ts  # Three-tier security boundaries (SAFE/DATA/BLOCKED)
 ├── knowledge-work-plugins-main/  # Anthropic knowledge-work plugins (Apache 2.0)
 │   ├── data/              # SQL, visualization, dashboards, statistics (7 skills)
 │   ├── finance/           # Journal entries, reconciliation, statements (6 skills)
@@ -802,6 +817,24 @@ pnpm build            # Compile TypeScript to dist/
 pnpm start            # Run compiled output
 pnpm test             # Run tests (vitest)
 ```
+
+### Test Suite
+
+160 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
+
+| Area | File | Tests | What it covers |
+|------|------|-------|----------------|
+| Agent | `tests/agent/core.test.ts` | 20 | Hallucination guard — detects LLM claiming actions without tool use |
+| Agent | `tests/agent/tool-loader.test.ts` | 24 | Category-based tool selection, keyword matching, meta-tools |
+| Agent | `tests/agent/plugin-loader.test.ts` | 17 | YAML frontmatter parsing, keyword extraction, stop words |
+| Skills | `tests/skills/reminders.test.ts` | 29 | Natural language time parsing, snooze duration, formatting |
+| Skills | `tests/skills/form-filler.test.ts` | 24 | Field normalization, fuzzy vault matching (3-pass) |
+| Tasks | `tests/tasks/busy-state.test.ts` | 12 | Busy state transitions, preemption lifecycle |
+| Tasks | `tests/tasks/escalation.test.ts` | 9 | Channel filtering, dedup, interaction tracking |
+| Config | `tests/config.test.ts` | 7 | Config defaults, A2A settings, validateConfig |
+| A2A | `tests/a2a/public-skills.test.ts` | 18 | Three-tier security (SAFE/DATA/BLOCKED), trust tiers, MCP blocking |
+
+Tests focus on exported pure functions — no network calls, no heavy mocking (except module-level mocks for tool-loader and A2A tests). Uses `vi.useFakeTimers()` for deterministic time tests.
 
 ### Adding New Skills
 
