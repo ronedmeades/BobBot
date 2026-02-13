@@ -560,7 +560,7 @@ export async function handleGetSellerListings(input: Record<string, unknown>): P
   const invResponse = await fetch(
     `${baseUrl}/sell/inventory/v1/inventory_item?limit=${limit}&offset=${offset}`,
     {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
     }
   );
 
@@ -595,7 +595,7 @@ export async function handleGetSellerListings(input: Record<string, unknown>): P
       const offerResponse = await fetch(
         `${baseUrl}/sell/inventory/v1/offer?sku=${encodeURIComponent(item.sku)}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
         }
       );
 
@@ -666,7 +666,7 @@ export async function handleUpdateEbayListing(input: Record<string, unknown>): P
     const getResponse = await fetch(
       `${baseUrl}/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
       }
     );
 
@@ -717,7 +717,7 @@ export async function handleUpdateEbayListing(input: Record<string, unknown>): P
     const getResponse = await fetch(
       `${baseUrl}/sell/inventory/v1/offer/${offerId}`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
       }
     );
 
@@ -798,7 +798,7 @@ export async function handleBulkUpdatePrices(input: Record<string, unknown>): Pr
     const response = await fetch(
       `${baseUrl}/sell/inventory/v1/inventory_item?limit=${pageSize}&offset=${offset}`,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
       }
     );
 
@@ -844,7 +844,7 @@ export async function handleBulkUpdatePrices(input: Record<string, unknown>): Pr
       const offerResponse = await fetch(
         `${baseUrl}/sell/inventory/v1/offer?sku=${encodeURIComponent(item.sku)}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
         }
       );
 
@@ -915,7 +915,7 @@ export async function handleBulkUpdatePrices(input: Record<string, unknown>): Pr
       const getResponse = await fetch(
         `${baseUrl}/sell/inventory/v1/offer/${change.offerId}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}`, "Accept-Language": "en-US" },
         }
       );
 

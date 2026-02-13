@@ -2,7 +2,7 @@ import "dotenv/config";
 import type { DiscoveryMode, TrustTier } from "./a2a/types.js";
 
 const DEFAULT_MODELS: Record<string, string> = {
-  anthropic: "claude-sonnet-4-5-20250929",
+  anthropic: "claude-opus-4-6",
   openai: "gpt-4o-mini",
   gemini: "gemini-2.0-flash",
 };
@@ -13,7 +13,7 @@ export const config = {
   llm: {
     provider,
     apiKey: process.env.LLM_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "",
-    model: process.env.LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-sonnet-4-5-20250929",
+    model: process.env.LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6",
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
