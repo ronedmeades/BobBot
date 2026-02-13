@@ -188,11 +188,12 @@ export async function handleSetEnvVar(
   const newContent = updatedLines.join("\n").replace(/\n*$/, "\n");
   await writeFile(ENV_PATH, newContent, "utf-8");
 
+  // Apply immediately to the running process — no restart needed
+  process.env[key] = value;
+
   return {
     success: true,
-    output:
-      `${found ? "Updated" : "Added"} ${key} in .env.\n\n` +
-      "Note: Restart Bob for this change to take effect.",
+    output: `${found ? "Updated" : "Added"} ${key} in .env. Active immediately — no restart needed.`,
   };
 }
 
