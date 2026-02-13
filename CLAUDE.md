@@ -284,7 +284,7 @@ Both share conversation history via the owner's user ID.
 
 ### Available Tools (~156 built-in across 33 skill modules + dynamic MCP server tools + 53 knowledge skills)
 
-**Core Tools (12):**
+**Core Tools (13):**
 | Tool | What It Does |
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
@@ -296,6 +296,7 @@ Both share conversation history via the owner's user ID.
 | `load_note` | Load a previously saved note |
 | `list_notes` | List all saved notes |
 | `update_user_profile` | Update user name, preferences, or notes |
+| `set_personality` | Switch personality preset (default, tars, professional, minimal) |
 | `install_skill` | Hot-install a new skill from local/skills/ (no restart needed) |
 | `load_knowledge` | Load domain expertise from a knowledge plugin (SQL guides, accounting standards, etc.) |
 | `list_knowledge` | List all installed knowledge plugins and their available skills |
@@ -820,11 +821,11 @@ pnpm test             # Run tests (vitest)
 
 ### Test Suite
 
-160 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
+167 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
 
 | Area | File | Tests | What it covers |
 |------|------|-------|----------------|
-| Agent | `tests/agent/core.test.ts` | 20 | Hallucination guard — detects LLM claiming actions without tool use |
+| Agent | `tests/agent/core.test.ts` | 27 | Hallucination guard + personality presets |
 | Agent | `tests/agent/tool-loader.test.ts` | 24 | Category-based tool selection, keyword matching, meta-tools |
 | Agent | `tests/agent/plugin-loader.test.ts` | 17 | YAML frontmatter parsing, keyword extraction, stop words |
 | Skills | `tests/skills/reminders.test.ts` | 29 | Natural language time parsing, snooze duration, formatting |
@@ -889,6 +890,21 @@ Tests focus on exported pure functions — no network calls, no heavy mocking (e
 - [x] Knowledge plugins — Anthropic knowledge-work-plugins integration (11 plugins, 53 skills, tiered injection)
 - [x] Memory system — Two-tier context memory (context.md hot cache + glossary.md decoder ring, decode-first pattern)
 - [ ] Discord server for Bob community
+
+## Personality Presets
+
+Bob has switchable personality presets inspired by TARS from Interstellar. Stored in `profile.preferences.personality`, injected into the system prompt via `getPersonalityPrompt()` in `src/agent/core.ts`.
+
+| Preset | Style |
+|--------|-------|
+| `default` | Personable, concise, occasional wit — a mate, not a corporate bot |
+| `tars` | Humor at 75%. Witty, sarcastic, competent. Dry one-liners. |
+| `professional` | No jokes, no flair. Clear communication and results. |
+| `minimal` | Bare facts, minimal words. Terse but accurate. |
+
+Switch via the `set_personality` tool (always loaded as a core tool). Takes effect from the next message onward.
+
+---
 
 ## Known Issues
 
