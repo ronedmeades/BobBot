@@ -295,10 +295,11 @@ Both share conversation history via the owner's user ID.
 Bob's `buildSystemPrompt()` injects several runtime guardrails:
 
 - **Platform awareness** — Detects `process.platform` and tells Bob to use Windows commands (findstr, PowerShell) instead of Unix (grep, ls, cat). Also reminds that the project is ESM (`import`, not `require`).
-- **Tool usage rules** — CRITICAL section forbidding hallucinated actions (must actually call tools, not just describe them). Covered: calls, SMS, calendar, reminders, emails.
+- **Tool usage rules** — CRITICAL section forbidding hallucinated actions (must actually call tools, not just describe them). Covered: calls, SMS, calendar, reminders, emails, file writes.
+- **File safety rules** — When modifying existing files, Bob must read first with `read_file`, then use `append=true` (add to end) or `overwrite=true` (replace after reading). Prevents silent data loss on cooperatively-built documents.
 - **No test file litter** — Bob must use `node -e "..."` or skill tools, not create temp scripts in the project root.
 - **Credential guidance** — Bob cannot read `.env` directly. Must use `list_env_keys` to check and `set_env_var` to update.
-- **Hallucination guard** — `detectUnusedActions()` catches claims without tool calls, re-enters agent loop with correction prompt.
+- **Hallucination guard** — `detectUnusedActions()` catches claims without tool calls, re-enters agent loop with correction prompt. Covers: calls, SMS, calendar, reminders, emails, file writes.
 
 ### Agent Loop (src/agent/core.ts)
 
@@ -322,7 +323,7 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
 | `read_file` | Read local files (with credential blocklist protection) |
-| `write_file` | Write files (creates directories automatically, credential paths blocked — use `set_env_var`) |
+| `write_file` | Write files (creates dirs, credential paths blocked, overwrite protection — must use `append=true` or `overwrite=true` for existing files) |
 | `list_directory` | List contents of a directory |
 | `run_command` | Execute shell commands (with timeout) |
 | `save_note` | Save a named note to persistent memory |
@@ -854,11 +855,11 @@ pnpm test             # Run tests (vitest)
 
 ### Test Suite
 
-167 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
+172 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
 
 | Area | File | Tests | What it covers |
 |------|------|-------|----------------|
-| Agent | `tests/agent/core.test.ts` | 27 | Hallucination guard + personality presets |
+| Agent | `tests/agent/core.test.ts` | 32 | Hallucination guard (calls, SMS, calendar, reminders, email, file writes) + personality presets |
 | Agent | `tests/agent/tool-loader.test.ts` | 24 | Category-based tool selection, keyword matching, meta-tools |
 | Agent | `tests/agent/plugin-loader.test.ts` | 17 | YAML frontmatter parsing, keyword extraction, stop words |
 | Skills | `tests/skills/reminders.test.ts` | 29 | Natural language time parsing, snooze duration, formatting |
@@ -900,6 +901,7 @@ Tests focus on exported pure functions — no network calls, no heavy mocking (e
 - **API token authentication** — all dashboard/API endpoints require `BOB_API_TOKEN`
 - **Telegram owner check** — only `OWNER_USER_ID` can interact with the bot
 - **Credential blocklist** — `read_file` and `write_file` both block `.env`, `.ssh/`, `.gnupg/`, credentials files. Credentials must go through `set_env_var` (allowlisted keys only)
+- **Safe file writes** — `write_file` refuses to overwrite existing files unless `append=true` (add to end) or `overwrite=true` (explicit replace) is set. Prevents silent data loss on cooperatively-built documents (timesheets, logs, etc.)
 - Credentials stored in `.env` (gitignored, never committed)
 - User memory and profiles stored locally in `memory/` (gitignored)
 - Tool execution has timeouts and output size limits
@@ -944,7 +946,7 @@ Switch via the `set_personality` tool (always loaded as a core tool). Takes effe
 ### Tool Hallucination (mitigated)
 With ~137 tools loaded on every message, the LLM sometimes "describes" taking an action (e.g. "Calling you now!") without actually invoking the tool. This is a known LLM behavior under high tool-count context pressure. **Mitigations in place:**
 1. System prompt includes explicit `CRITICAL — Tool usage rules` section forbidding fake actions
-2. `detectUnusedActions()` guard in `core.ts` catches claims about calls, SMS, calendar, reminders, and emails without corresponding tool usage, and re-enters the agent loop with a correction prompt
+2. `detectUnusedActions()` guard in `core.ts` catches claims about calls, SMS, calendar, reminders, emails, and file writes without corresponding tool usage, and re-enters the agent loop with a correction prompt
 3. Category-based tool loading (implemented) reduces tools sent per message from ~145 to 12-40, significantly reducing context pressure
 4. MCP tool servers further reduce need to load all built-in tools at once
 
