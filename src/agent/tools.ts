@@ -84,7 +84,10 @@ const builtinTools: ToolDefinition[] = [
   {
     name: "write_file",
     description:
-      "Write content to a local file. Creates directories if needed.",
+      "Write content to a local file. Creates directories if needed. " +
+      "SAFETY: If the file already exists, you MUST set either append=true (add to end) or overwrite=true (replace entire file). " +
+      "Default behaviour refuses to write if file exists — to prevent accidental data loss. " +
+      "For documents that grow over time (timesheets, logs, notes), use append=true.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -95,6 +98,14 @@ const builtinTools: ToolDefinition[] = [
         content: {
           type: "string",
           description: "The content to write",
+        },
+        append: {
+          type: "boolean",
+          description: "Append content to end of existing file instead of replacing (default: false)",
+        },
+        overwrite: {
+          type: "boolean",
+          description: "Explicitly allow overwriting an existing file (default: false). Only set this after reading the file with read_file and rebuilding the full content.",
         },
       },
       required: ["path", "content"],

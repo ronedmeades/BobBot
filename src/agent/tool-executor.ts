@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
+import { readFile, writeFile, appendFile, mkdir, readdir, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { exec } from "node:child_process";
 import { memory } from "./memory.js";
@@ -752,6 +752,8 @@ async function handleReadFile(input: Record<string, unknown>): Promise<ToolResul
 async function handleWriteFile(input: Record<string, unknown>): Promise<ToolResult> {
   const path = resolve(input.path as string);
   const content = input.content as string;
+  const append = (input.append as boolean) ?? false;
+  const overwrite = (input.overwrite as boolean) ?? false;
 
   // Block writing to .env files — credentials must go through set_env_var
   if (isBlockedPath(path)) {
@@ -763,9 +765,35 @@ async function handleWriteFile(input: Record<string, unknown>): Promise<ToolResu
     };
   }
 
-  await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, content, "utf-8");
+  // Check if file already exists — refuse silent overwrites
+  let fileExists = false;
+  try {
+    await stat(path);
+    fileExists = true;
+  } catch {
+    // File does not exist — safe to create
+  }
 
+  if (fileExists && !append && !overwrite) {
+    return {
+      success: false,
+      output:
+        `File already exists: ${path}\n` +
+        "To avoid data loss, choose one of:\n" +
+        "  1. append=true — add your content to the end of the existing file\n" +
+        "  2. overwrite=true — replace the file (read it first with read_file to preserve existing content)\n" +
+        "  3. Use read_file first, merge the content yourself, then write with overwrite=true",
+    };
+  }
+
+  await mkdir(dirname(path), { recursive: true });
+
+  if (append) {
+    await appendFile(path, content, "utf-8");
+    return { success: true, output: `Appended to ${path}` };
+  }
+
+  await writeFile(path, content, "utf-8");
   return { success: true, output: `Written to ${path}` };
 }
 

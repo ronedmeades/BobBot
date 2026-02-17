@@ -96,6 +96,32 @@ describe("detectUnusedActions", () => {
     });
   });
 
+  describe("write_file detection", () => {
+    it("detects 'file updated' without tool use", () => {
+      const result = detectUnusedActions("File updated with the new entry.", []);
+      expect(result).toEqual({ claim: "writing/updating a file", tool: "write_file" });
+    });
+
+    it("detects 'updated the timesheet' variant", () => {
+      const result = detectUnusedActions("I've updated the timesheet for today.", []);
+      expect(result).toEqual({ claim: "writing/updating a file", tool: "write_file" });
+    });
+
+    it("detects 'saved the file' variant", () => {
+      const result = detectUnusedActions("Saved the file with your changes.", []);
+      expect(result).toEqual({ claim: "writing/updating a file", tool: "write_file" });
+    });
+
+    it("detects 'appended to the file' variant", () => {
+      const result = detectUnusedActions("I've appended to the file.", []);
+      expect(result).toEqual({ claim: "writing/updating a file", tool: "write_file" });
+    });
+
+    it("returns null when write_file was actually used", () => {
+      expect(detectUnusedActions("File updated!", ["write_file"])).toBeNull();
+    });
+  });
+
   describe("edge cases", () => {
     it("is case insensitive", () => {
       const result = detectUnusedActions("CALLING YOU NOW!", []);
