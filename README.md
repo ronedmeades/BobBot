@@ -433,6 +433,21 @@ Some AI providers have rate limits, especially on free tiers. Wait a moment and 
 
 ---
 
+## Tech Stack
+
+- **No web framework** — the dashboard/API server is raw `http.createServer()` (Node built-in)
+- **grammY** — Telegram bot framework
+- **@anthropic-ai/sdk** — Claude API client (also supports OpenAI and Gemini via provider adapters)
+- **@modelcontextprotocol/sdk** — MCP client for plug-and-play tool servers
+- **better-sqlite3** — SQLite database (conversation history, analytics, event log)
+- **TypeScript** (strict, ESM) with **tsx** for dev/watch mode
+- **Vitest** for testing
+- **pnpm** as package manager
+
+Minimal dependencies by design — Node built-ins preferred over adding packages.
+
+---
+
 ## For Developers
 
 See [CLAUDE.md](./CLAUDE.md) for the full technical architecture, API docs, and how to add new skills.
