@@ -300,6 +300,45 @@ export async function executeTool(
         await memory.saveProfile(personalityProfile);
         return { success: true, output: `Personality set to "${preset}". I'll use this style from next message onward.` };
       }
+      case "set_cost_mode": {
+        const mode = input.mode as string;
+        const validModes = ["primary", "balanced"];
+        if (!validModes.includes(mode)) {
+          return { success: false, output: `Unknown mode. Available: ${validModes.join(", ")}` };
+        }
+        if (mode === "balanced") {
+          const { config: appConfig } = await import("../config.js");
+          if (!appConfig.secondaryLlm) {
+            return {
+              success: false,
+              output:
+                "Balanced mode needs a secondary model, but none is configured.\n\n" +
+                "The easiest option is Gemini Flash — it's 30x cheaper than Opus and Google has a free tier.\n\n" +
+                "To set it up:\n" +
+                "1. Get a free API key at https://aistudio.google.com/apikey\n" +
+                "2. Then I can configure it for you — just paste the key and I'll use set_env_var to set:\n" +
+                "   SECONDARY_PROVIDER=gemini\n" +
+                "   SECONDARY_API_KEY=<your key>\n" +
+                "   SECONDARY_MODEL=gemini-2.0-flash\n\n" +
+                "Or for a free local model via Ollama:\n" +
+                "   SECONDARY_PROVIDER=openai\n" +
+                "   SECONDARY_API_KEY=ollama\n" +
+                "   SECONDARY_MODEL=qwen3:8b\n" +
+                "   SECONDARY_BASE_URL=http://localhost:11434/v1",
+            };
+          }
+        }
+        const costProfile = await memory.loadProfile(context?.userId ?? "owner");
+        if (!costProfile) return { success: false, output: "Profile not found" };
+        costProfile.preferences.costMode = mode;
+        await memory.saveProfile(costProfile);
+        const { config: appConfig } = await import("../config.js");
+        const secondary = appConfig.secondaryLlm;
+        const desc = mode === "primary"
+          ? "Everything uses the primary model."
+          : `Direct chat → primary (${appConfig.llm.model}). Simple background tasks → secondary (${secondary?.model ?? "none"}).`;
+        return { success: true, output: `Cost mode set to "${mode}". ${desc}` };
+      }
       case "install_skill":
         return await handleInstallSkill(input);
       // Image processing skills

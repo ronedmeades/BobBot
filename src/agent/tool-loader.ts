@@ -39,6 +39,7 @@ export const CORE_TOOL_NAMES = new Set([
   "get_weather",
   "get_forecast",
   "set_personality",
+  "set_cost_mode",
   "load_knowledge",
   "list_knowledge",
 ]);
@@ -386,6 +387,21 @@ export function buildCategorySystemPromptSection(): string {
 You currently have a subset of your tools loaded. If you need tools from another category, use load_tools to activate them.
 Available categories:
 ${lines.join("\n")}`;
+}
+
+/**
+ * Count how many tool categories match a message (keyword matching).
+ * Used by cost-mode routing to assess task complexity.
+ */
+export function countMatchedCategories(message: string): number {
+  const lower = message.toLowerCase();
+  let count = 0;
+  for (const cat of TOOL_CATEGORIES) {
+    if (cat.keywords.some((kw) => lower.includes(kw))) {
+      count++;
+    }
+  }
+  return count;
 }
 
 /**

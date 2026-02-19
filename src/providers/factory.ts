@@ -1,33 +1,29 @@
-import type { LLMProvider } from "./types.js";
+import type { LLMProvider, LLMConfig } from "./types.js";
 import { AnthropicProvider } from "./anthropic.js";
 import { OpenAIProvider } from "./openai.js";
 import { GeminiProvider } from "./gemini.js";
 
-interface LLMConfig {
-  provider: string;
-  apiKey: string;
-  model: string;
-}
-
-let cached: LLMProvider | null = null;
-let cachedKey = "";
+const cache = new Map<string, LLMProvider>();
 
 /**
  * Create (or return cached) LLM provider based on config.
+ * Supports multiple concurrent providers via Map-based cache.
  */
 export function getProvider(llm: LLMConfig): LLMProvider {
-  const key = `${llm.provider}:${llm.apiKey}:${llm.model}`;
-  if (cached && cachedKey === key) return cached;
+  const key = `${llm.provider}:${llm.apiKey}:${llm.model}:${llm.baseUrl ?? ""}`;
+  const existing = cache.get(key);
+  if (existing) return existing;
 
+  let provider: LLMProvider;
   switch (llm.provider) {
     case "anthropic":
-      cached = new AnthropicProvider(llm.apiKey);
+      provider = new AnthropicProvider(llm.apiKey);
       break;
     case "openai":
-      cached = new OpenAIProvider(llm.apiKey);
+      provider = new OpenAIProvider(llm.apiKey, llm.baseUrl);
       break;
     case "gemini":
-      cached = new GeminiProvider(llm.apiKey);
+      provider = new GeminiProvider(llm.apiKey);
       break;
     default:
       throw new Error(
@@ -35,6 +31,6 @@ export function getProvider(llm: LLMConfig): LLMProvider {
       );
   }
 
-  cachedKey = key;
-  return cached;
+  cache.set(key, provider);
+  return provider;
 }

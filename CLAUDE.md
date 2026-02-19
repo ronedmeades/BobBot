@@ -49,6 +49,8 @@ OWNER_NOTES=Optional context        # Anything Bob should know about you
 DASHBOARD_PORT=3000                 # Optional, defaults to 3000
 HA_URL=http://192.168.1.100:8123    # Home Assistant URL (optional)
 HA_TOKEN=your_long_lived_token      # HA long-lived access token (optional)
+SECONDARY_PROVIDER=gemini           # Secondary model provider (optional)
+SECONDARY_API_KEY=                  # API key for secondary provider (optional)
 ```
 
 To create your own Telegram bot:
@@ -316,9 +318,9 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 10. Return response
 ```
 
-### Available Tools (~156 built-in across 33 skill modules + dynamic MCP server tools + 53 knowledge skills)
+### Available Tools (~157 built-in across 33 skill modules + dynamic MCP server tools + 53 knowledge skills)
 
-**Core Tools (13):**
+**Core Tools (14):**
 | Tool | What It Does |
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
@@ -331,6 +333,7 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 | `list_notes` | List all saved notes |
 | `update_user_profile` | Update user name, preferences, or notes |
 | `set_personality` | Switch personality preset (default, tars, professional, minimal) |
+| `set_cost_mode` | Switch cost optimization mode (primary = all primary, balanced = simple background tasks on secondary) |
 | `install_skill` | Hot-install a new skill from local/skills/ (no restart needed) |
 | `load_knowledge` | Load domain expertise from a knowledge plugin (SQL guides, accounting standards, etc.) |
 | `list_knowledge` | List all installed knowledge plugins and their available skills |
@@ -855,18 +858,18 @@ pnpm test             # Run tests (vitest)
 
 ### Test Suite
 
-172 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
+195 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
 
 | Area | File | Tests | What it covers |
 |------|------|-------|----------------|
-| Agent | `tests/agent/core.test.ts` | 32 | Hallucination guard (calls, SMS, calendar, reminders, email, file writes) + personality presets |
-| Agent | `tests/agent/tool-loader.test.ts` | 24 | Category-based tool selection, keyword matching, meta-tools |
+| Agent | `tests/agent/core.test.ts` | 47 | Hallucination guard, personality presets, isSimpleTask, resolveProvider routing |
+| Agent | `tests/agent/tool-loader.test.ts` | 29 | Category-based tool selection, keyword matching, meta-tools, countMatchedCategories |
 | Agent | `tests/agent/plugin-loader.test.ts` | 17 | YAML frontmatter parsing, keyword extraction, stop words |
 | Skills | `tests/skills/reminders.test.ts` | 29 | Natural language time parsing, snooze duration, formatting |
 | Skills | `tests/skills/form-filler.test.ts` | 24 | Field normalization, fuzzy vault matching (3-pass) |
 | Tasks | `tests/tasks/busy-state.test.ts` | 12 | Busy state transitions, preemption lifecycle |
 | Tasks | `tests/tasks/escalation.test.ts` | 9 | Channel filtering, dedup, interaction tracking |
-| Config | `tests/config.test.ts` | 7 | Config defaults, A2A settings, validateConfig |
+| Config | `tests/config.test.ts` | 10 | Config defaults, A2A settings, validateConfig, cost mode config + hot-reload |
 | A2A | `tests/a2a/public-skills.test.ts` | 18 | Three-tier security (SAFE/DATA/BLOCKED), trust tiers, MCP blocking |
 
 Tests focus on exported pure functions — no network calls, no heavy mocking (except module-level mocks for tool-loader and A2A tests). Uses `vi.useFakeTimers()` for deterministic time tests.
@@ -924,6 +927,7 @@ Tests focus on exported pure functions — no network calls, no heavy mocking (e
 - [x] Voice — Telegram voice messages (Whisper STT + edge-tts TTS)
 - [x] Knowledge plugins — Anthropic knowledge-work-plugins integration (11 plugins, 53 skills, tiered injection)
 - [x] Memory system — Two-tier context memory (context.md hot cache + glossary.md decoder ring, decode-first pattern)
+- [x] Two-brain cost mode — dual-provider routing (primary + balanced modes, task complexity assessment, fallback + notify)
 - [ ] Discord server for Bob community
 
 ## Personality Presets

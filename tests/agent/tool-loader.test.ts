@@ -17,6 +17,7 @@ import {
   getToolsForCategories,
   isValidCategory,
   buildCategorySystemPromptSection,
+  countMatchedCategories,
   CORE_TOOL_NAMES,
   TOOL_CATEGORIES,
 } from "../../src/agent/tool-loader.js";
@@ -160,6 +161,31 @@ describe("selectToolsForMessage", () => {
     expect(result.some((d) => d.name === "batch_resize_images")).toBe(true);
     expect(result.some((d) => d.name === "set_reminder")).toBe(true);
     expect(result.some((d) => d.name === "get_seller_listings")).toBe(true);
+  });
+});
+
+describe("countMatchedCategories", () => {
+  it("returns 0 for a generic message", () => {
+    expect(countMatchedCategories("hello there")).toBe(0);
+  });
+
+  it("returns 1 for a single-category message", () => {
+    expect(countMatchedCategories("resize my image")).toBe(1);
+  });
+
+  it("returns 2+ for a multi-category message", () => {
+    const count = countMatchedCategories("resize the image and remind me to check ebay");
+    expect(count).toBeGreaterThanOrEqual(2);
+  });
+
+  it("returns 0 for simple fetch-like messages", () => {
+    expect(countMatchedCategories("fetch this URL for me")).toBe(0);
+  });
+});
+
+describe("CORE_TOOL_NAMES", () => {
+  it("includes set_cost_mode", () => {
+    expect(CORE_TOOL_NAMES.has("set_cost_mode")).toBe(true);
   });
 });
 

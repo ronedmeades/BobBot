@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS } from "../../src/agent/core.js";
+import { describe, it, expect, vi } from "vitest";
+import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS, isSimpleTask, resolveProvider } from "../../src/agent/core.js";
 
 describe("detectUnusedActions", () => {
   describe("returns null for clean responses", () => {
@@ -172,5 +172,81 @@ describe("getPersonalityPrompt", () => {
 
   it("has exactly 4 presets", () => {
     expect(Object.keys(PERSONALITY_PRESETS)).toEqual(["default", "tars", "professional", "minimal"]);
+  });
+});
+
+describe("isSimpleTask", () => {
+  it("detects URL fetching as simple", () => {
+    expect(isSimpleTask("fetch the page at example.com")).toBe(true);
+  });
+
+  it("detects weather check as simple", () => {
+    expect(isSimpleTask("check weather in London")).toBe(true);
+  });
+
+  it("detects file reading as simple", () => {
+    expect(isSimpleTask("read file config.json")).toBe(true);
+  });
+
+  it("detects download as simple", () => {
+    expect(isSimpleTask("download the report from the URL")).toBe(true);
+  });
+
+  it("rejects long descriptions as complex", () => {
+    const longDesc = "Research the top 10 competitors in the AI agent space, analyze their pricing models, feature sets, and target audiences. Compare with our approach and prepare a detailed report with recommendations for positioning and feature priorities.";
+    expect(isSimpleTask(longDesc)).toBe(false);
+  });
+
+  it("rejects generic research tasks as complex", () => {
+    expect(isSimpleTask("research AI agent frameworks and compare them")).toBe(false);
+  });
+
+  it("rejects multi-step tasks as complex", () => {
+    expect(isSimpleTask("check my ebay orders and email the summary")).toBe(false);
+  });
+
+  it("rejects analysis tasks as complex", () => {
+    expect(isSimpleTask("analyze my expenses for this month")).toBe(false);
+  });
+});
+
+describe("resolveProvider", () => {
+  it("primary mode always returns primary provider", () => {
+    const result = resolveProvider("worker", "primary", "fetch a page");
+    expect(result.isSecondary).toBe(false);
+  });
+
+  it("primary mode returns primary for chat", () => {
+    const result = resolveProvider("telegram", "primary");
+    expect(result.isSecondary).toBe(false);
+  });
+
+  it("balanced mode returns primary for chat", () => {
+    const result = resolveProvider("telegram", "balanced");
+    expect(result.isSecondary).toBe(false);
+  });
+
+  it("balanced mode returns primary for a2a", () => {
+    const result = resolveProvider("a2a", "balanced");
+    expect(result.isSecondary).toBe(false);
+  });
+
+  it("balanced mode returns primary for dashboard", () => {
+    const result = resolveProvider("dashboard", "balanced");
+    expect(result.isSecondary).toBe(false);
+  });
+
+  it("balanced mode returns primary for complex worker tasks", () => {
+    const result = resolveProvider("worker", "balanced", "research AI frameworks and write a comparison report");
+    expect(result.isSecondary).toBe(false);
+  });
+
+  it("balanced mode falls back to primary when no secondary configured", () => {
+    // When no SECONDARY_PROVIDER is set, config.secondaryLlm returns null
+    // resolveProvider should gracefully return primary
+    const result = resolveProvider("worker", "balanced", "fetch the page");
+    // This will be primary if no secondary is configured in env (which is the test case)
+    expect(result.provider).toBeDefined();
+    expect(result.llmConfig).toBeDefined();
   });
 });

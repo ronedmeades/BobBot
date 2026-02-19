@@ -1,10 +1,12 @@
-import { config } from "../config.js";
+import { config, type CostMode } from "../config.js";
 import { getProvider } from "../providers/factory.js";
 import type {
   Message,
   ContentBlock,
   ToolResultContent,
   ResponseBlock,
+  LLMProvider,
+  LLMConfig,
 } from "../providers/types.js";
 import { toolDefinitions } from "./tools.js";
 import type { ToolDefinition } from "../providers/types.js";
@@ -22,6 +24,7 @@ import {
 import { getAvailableChannels } from "../tasks/escalation.js";
 import {
   selectToolsForMessage,
+  countMatchedCategories,
   getToolsForCategories,
   buildCategorySystemPromptSection,
 } from "./tool-loader.js";
@@ -36,6 +39,74 @@ export const PERSONALITY_PRESETS: Record<string, string> = {
 
 export function getPersonalityPrompt(preset?: string): string {
   return PERSONALITY_PRESETS[preset ?? "default"] ?? PERSONALITY_PRESETS["default"]!;
+}
+
+// ---------------------------------------------------------------------------
+// Two-brain cost mode: routing + complexity assessment
+// ---------------------------------------------------------------------------
+
+/** Simple-task keywords — conservative, only genuinely trivial operations */
+const SIMPLE_TASK_PATTERNS = [
+  "fetch", "download", "scrape", "get page", "get url", "read file",
+  "list directory", "check weather", "weather", "forecast",
+  "what time", "what date", "ping",
+];
+
+/**
+ * Assess if a background task description is simple enough for a secondary model.
+ * Conservative: when in doubt, returns false (→ use primary).
+ */
+export function isSimpleTask(description: string): boolean {
+  const lower = description.toLowerCase();
+  // Long descriptions are likely complex
+  if (lower.length > 200) return false;
+  // Check if it matches known simple patterns
+  const matchesSimple = SIMPLE_TASK_PATTERNS.some((p) => lower.includes(p));
+  if (!matchesSimple) return false;
+  // Check how many tool categories it would need — 2+ = complex
+  const catCount = countMatchedCategories(description);
+  if (catCount >= 2) return false;
+  return true;
+}
+
+export interface ResolvedProvider {
+  provider: LLMProvider;
+  llmConfig: LLMConfig;
+  isSecondary: boolean;
+}
+
+/**
+ * Resolve which provider to use based on cost mode and source.
+ * primary mode: always use primary.
+ * balanced mode: simple background tasks → secondary, everything else → primary.
+ */
+export function resolveProvider(
+  source: AgentSource,
+  costMode: CostMode,
+  taskDescription?: string,
+): ResolvedProvider {
+  const primaryConfig = config.llm;
+  const primaryProvider = getProvider(primaryConfig);
+  const primary: ResolvedProvider = { provider: primaryProvider, llmConfig: primaryConfig, isSecondary: false };
+
+  // Primary mode or no secondary configured → always primary
+  if (costMode === "primary") return primary;
+
+  const secondaryConfig = config.secondaryLlm;
+  if (!secondaryConfig) return primary;
+
+  // Balanced mode: only background tasks can be routed to secondary
+  if (source !== "worker") return primary;
+
+  // Assess task complexity
+  if (taskDescription && isSimpleTask(taskDescription)) {
+    const secondaryProvider = getProvider(secondaryConfig);
+    console.log(`[cost-mode] source=worker model=${secondaryConfig.model} (secondary — simple task)`);
+    return { provider: secondaryProvider, llmConfig: secondaryConfig, isSecondary: true };
+  }
+
+  console.log(`[cost-mode] source=worker model=${primaryConfig.model} (primary — complex task)`);
+  return primary;
 }
 
 function buildSystemPrompt(profile: UserProfile | null, notes: string[], ownerContext?: string | null): string {
@@ -78,6 +149,7 @@ Response style:
 - Use bullet points for lists, not paragraphs.
 
 Your model: ${config.llm.model} (provider: ${config.llm.provider})
+Cost mode: ${profile?.preferences?.costMode ?? config.costMode.default}${config.secondaryLlm ? ` | secondary: ${config.secondaryLlm.model} (${config.secondaryLlm.provider})` : " | no secondary configured"}
 Platform: You are running on ${process.platform === "win32" ? "Windows — use PowerShell or cmd syntax (findstr, dir, etc.), NOT Unix commands (grep, ls, cat). The project is ESM (\"type\": \"module\") so use import, not require." : process.platform === "darwin" ? "macOS." : "Linux."}
 
 CRITICAL — Actions require tools:
@@ -166,8 +238,6 @@ Telegram setup:
 ${userName === "mate" || userName === "Owner" ? `
 The user hasn't told you their name yet. Ask them early in the conversation so you can address them personally. Use update_user_profile to save it.` : ""}`;
 }
-
-const provider = getProvider(config.llm);
 
 export interface AgentResponse {
   text: string;
@@ -320,6 +390,18 @@ async function runAgentInner(
     await memory.saveProfile(profile);
   }
 
+  // Resolve cost mode and provider
+  const costMode: CostMode = (profile?.preferences?.costMode as CostMode) ?? config.costMode.default;
+  const resolved = options?.systemPrompt
+    ? { provider: getProvider(config.llm), llmConfig: config.llm, isSecondary: false } // A2A/sandbox always use primary
+    : resolveProvider(source, costMode, userMessage);
+  let activeProvider = resolved.provider;
+  let activeLlmConfig = resolved.llmConfig;
+
+  if (!options?.systemPrompt && source !== "worker") {
+    console.log(`[cost-mode] source=${source} model=${activeLlmConfig.model} (${resolved.isSecondary ? "secondary" : "primary"})`);
+  }
+
   const isDirectChat = source === "telegram" || source === "dashboard";
   const baseSysPrompt = options?.systemPrompt ?? buildSystemPrompt(profile, notes, ownerContext);
   const pluginSection = isDirectChat && !options?.systemPrompt
@@ -380,13 +462,36 @@ async function runAgentInner(
       detail: rounds === 1 ? "Thinking..." : `Working... (step ${rounds})`,
     });
 
-    const response = await provider.chat({
-      model: config.llm.model,
-      maxTokens: 4096,
-      system: systemPrompt,
-      tools: activeToolDefs,
-      messages,
-    });
+    let response;
+    let fallbackNotice = "";
+    try {
+      response = await activeProvider.chat({
+        model: activeLlmConfig.model,
+        maxTokens: 4096,
+        system: systemPrompt,
+        tools: activeToolDefs,
+        messages,
+      });
+    } catch (err) {
+      // If secondary failed, fall back to primary and notify
+      if (resolved.isSecondary) {
+        const reason = err instanceof Error ? err.message : String(err);
+        console.log(`[cost-mode] Secondary failed (${reason}), falling back to primary`);
+        const primaryConfig = config.llm;
+        activeProvider = getProvider(primaryConfig);
+        activeLlmConfig = primaryConfig;
+        fallbackNotice = `\n\n---\n*Secondary model failed (${activeLlmConfig.provider}): ${reason}. Fell back to primary model for this task.*`;
+        response = await activeProvider.chat({
+          model: activeLlmConfig.model,
+          maxTokens: 4096,
+          system: systemPrompt,
+          tools: activeToolDefs,
+          messages,
+        });
+      } else {
+        throw err;
+      }
+    }
 
     // Collect all text blocks from the response
     const textBlocks = response.content
@@ -400,7 +505,7 @@ async function runAgentInner(
 
     // If no tool calls, check for hallucinated actions before finishing
     if (response.stopReason === "end_turn" || toolUseBlocks.length === 0) {
-      const finalText = textBlocks.join("\n") || "(No response)";
+      const finalText = (textBlocks.join("\n") || "(No response)") + fallbackNotice;
 
       // Guard: detect when Bob claims to have done something without using the tool
       const missed = detectUnusedActions(finalText, toolsUsed);

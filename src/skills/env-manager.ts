@@ -60,6 +60,13 @@ const ALLOWED_KEYS = new Set([
   "TWILIO_AUTH_TOKEN",
   "TWILIO_PHONE_NUMBER",
   "OWNER_PHONE_NUMBER",
+
+  // Cost Mode (secondary model)
+  "SECONDARY_PROVIDER",
+  "SECONDARY_API_KEY",
+  "SECONDARY_MODEL",
+  "SECONDARY_BASE_URL",
+  "DEFAULT_COST_MODE",
 ]);
 
 const ENV_PATH = resolve(".env");
@@ -106,7 +113,7 @@ export const envManagerToolDefinitions: ToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: ["all", "core", "telegram", "dashboard", "ebay", "gmail", "google_calendar", "etsy", "twilio", "backup"],
+          enum: ["all", "core", "telegram", "dashboard", "ebay", "gmail", "google_calendar", "etsy", "twilio", "backup", "cost_mode"],
           description: "Filter by category (default: 'all')",
         },
       },
@@ -225,6 +232,10 @@ export async function handleListEnvKeys(
     },
     etsy: { keys: ["ETSY_API_KEY", "ETSY_SHARED_SECRET", "ETSY_REFRESH_TOKEN", "ETSY_SHOP_ID"] },
     twilio: { keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "OWNER_PHONE_NUMBER"] },
+    cost_mode: {
+      keys: ["SECONDARY_PROVIDER", "SECONDARY_API_KEY", "SECONDARY_MODEL", "SECONDARY_BASE_URL", "DEFAULT_COST_MODE"],
+      hint: "Secondary model for cost optimization. Gemini Flash (30x cheaper), or Ollama for free local models (SECONDARY_BASE_URL=http://localhost:11434/v1).",
+    },
   };
 
   const cat = category === "all" ? null : categories[category];

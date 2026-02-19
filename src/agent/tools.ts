@@ -230,6 +230,25 @@ const builtinTools: ToolDefinition[] = [
     },
   },
   {
+    name: "set_cost_mode",
+    description:
+      "Switch Bob's cost optimization mode. " +
+      "'primary' uses the primary model for everything (max quality). " +
+      "'balanced' routes simple background tasks to a cheaper secondary model while keeping the primary for direct chat and complex tasks. " +
+      "Requires SECONDARY_PROVIDER to be configured for balanced mode.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        mode: {
+          type: "string",
+          enum: ["primary", "balanced"],
+          description: "The cost mode to use",
+        },
+      },
+      required: ["mode"],
+    },
+  },
+  {
     name: "install_skill",
     description:
       "Hot-install a new skill that you've written to local/skills/. Use this after creating a skill file with write_file. The new tools become available immediately — no restart needed. If the skill fails to load, you'll get the error message so you can fix the file and try again.",

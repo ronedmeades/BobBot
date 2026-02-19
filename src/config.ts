@@ -1,5 +1,8 @@
 import "dotenv/config";
 import type { DiscoveryMode, TrustTier } from "./a2a/types.js";
+import type { LLMConfig } from "./providers/types.js";
+
+export type CostMode = "primary" | "balanced";
 
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: "claude-opus-4-6",
@@ -14,6 +17,25 @@ export const config = {
     provider,
     apiKey: process.env.LLM_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "",
     model: process.env.LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6",
+  } satisfies LLMConfig,
+  /** Secondary LLM for balanced mode. Getter reads process.env live so set_env_var hot-reload works. */
+  get secondaryLlm(): LLMConfig | null {
+    const p = process.env.SECONDARY_PROVIDER?.toLowerCase();
+    const k = process.env.SECONDARY_API_KEY;
+    if (!p || !k) return null;
+    return {
+      provider: p,
+      apiKey: k,
+      model: process.env.SECONDARY_MODEL ?? DEFAULT_MODELS[p] ?? "",
+      baseUrl: process.env.SECONDARY_BASE_URL || undefined,
+    };
+  },
+  costMode: {
+    get default(): CostMode {
+      const mode = process.env.DEFAULT_COST_MODE?.toLowerCase();
+      if (mode === "balanced") return "balanced";
+      return "primary";
+    },
   },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
@@ -64,6 +86,13 @@ export function validateConfig(): void {
   if (!config.dashboard.apiToken) {
     console.log("WARNING: No BOB_API_TOKEN set — dashboard API is unauthenticated!");
     console.log("Set BOB_API_TOKEN in .env to secure the dashboard.\n");
+  }
+  if (config.costMode.default === "balanced" && !config.secondaryLlm) {
+    console.log("WARNING: DEFAULT_COST_MODE=balanced but no SECONDARY_PROVIDER configured.");
+    console.log("Balanced mode needs SECONDARY_PROVIDER + SECONDARY_API_KEY. Falling back to primary mode.\n");
+  }
+  if (config.secondaryLlm) {
+    console.log(`Cost mode: secondary provider available (${config.secondaryLlm.provider}/${config.secondaryLlm.model})`);
   }
   if (config.a2a.enabled) {
     if (!config.a2a.publicUrl) {
