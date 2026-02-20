@@ -30,6 +30,21 @@ import {
 } from "./tool-loader.js";
 import { selectPluginKnowledgeForMessage } from "./plugin-loader.js";
 
+// ---------------------------------------------------------------------------
+// User-initiated interrupt: Esc key (dashboard) / /cancel (Telegram)
+// ---------------------------------------------------------------------------
+
+/** Track active agent runs for user-initiated cancellation. */
+const activeRuns = new Map<string, AbortController>();
+
+/** Cancel an active agent run. Returns true if a run was cancelled. */
+export function cancelAgentRun(userId: string): boolean {
+  const controller = activeRuns.get(userId);
+  if (!controller) return false;
+  controller.abort();
+  return true;
+}
+
 export const PERSONALITY_PRESETS: Record<string, string> = {
   default: "You have a sense of humor — you're a mate, not a corporate bot. Personable, concise, and well thought out. A joke when the moment calls for it, but never forced.",
   tars: "Your humor setting is at 75%. You're witty, occasionally sarcastic, and always competent. Drop dry one-liners when appropriate. Think TARS from Interstellar — honest, sharp, gets the job done, but makes it entertaining.",
@@ -287,13 +302,17 @@ export async function runAgent(
     }
   }
 
+  const controller = new AbortController();
+  activeRuns.set(userId, controller);
+
   if (!isWorker && !isA2A) {
     setIsBusy(true, "chat");
   }
 
   try {
-    return await runAgentInner(userId, userMessage, source, options);
+    return await runAgentInner(userId, userMessage, source, options, controller.signal);
   } finally {
+    activeRuns.delete(userId);
     if (!isWorker && !isA2A) {
       setIsBusy(false);
     }
@@ -363,7 +382,8 @@ async function runAgentInner(
   userId: string,
   userMessage: string,
   source: AgentSource,
-  options?: AgentOptions
+  options: AgentOptions | undefined,
+  signal: AbortSignal
 ): Promise<AgentResponse> {
   const eventSource = source === "worker" || source === "a2a" ? "dashboard" : source;
   events.emitEvent("message:in", { userId, text: userMessage, source: eventSource });
@@ -444,6 +464,11 @@ async function runAgentInner(
   const toolsUsed: string[] = [];
   let rounds = 0;
 
+  // Circuit breaker: detect repeated identical tool errors (stuck detection)
+  let lastErrorKey: string | null = null;
+  let consecutiveErrorCount = 0;
+  const CIRCUIT_BREAKER_LIMIT = 2;
+
   // Agentic loop — keep going while the LLM wants to use tools
   while (rounds < maxToolRounds) {
     // Check if worker should yield to a direct chat message
@@ -452,6 +477,26 @@ async function runAgentInner(
       clearPreempt();
       events.emitEvent("agent:status", { userId, status: "done", detail: "Preempted" });
       return { text: "(Preempted by direct chat — will continue on next tick)", toolsUsed };
+    }
+
+    // Check for user-initiated interrupt (Esc key, /cancel command)
+    if (signal.aborted) {
+      console.log(`[agent] Run interrupted by user (${source})`);
+
+      const interruptMsg = toolsUsed.length > 0
+        ? `(Interrupted after ${rounds} steps, used: ${[...new Set(toolsUsed)].join(", ")})\n\nI was working on your request. What would you like to do — continue, try a different approach, or something else?`
+        : "(Interrupted) What's up?";
+
+      await memory.appendHistory(userId, {
+        role: "assistant",
+        content: interruptMsg,
+        timestamp: new Date().toISOString(),
+      }, source);
+
+      events.emitEvent("agent:status", { userId, status: "done", detail: "Interrupted" });
+      events.emitEvent("message:out", { userId, text: interruptMsg });
+
+      return { text: interruptMsg, toolsUsed };
     }
 
     rounds++;
@@ -587,6 +632,44 @@ async function runAgentInner(
         };
       })
     );
+
+    // Circuit breaker: detect repeated identical tool errors
+    const failedResults = toolResults.filter(r => r.is_error);
+    if (failedResults.length > 0) {
+      const failedBlock = toolUseBlocks.find(b => b.id === failedResults[0].tool_use_id);
+      const errorKey = `${failedBlock?.name}:${failedResults[0].content.slice(0, 100)}`;
+
+      if (errorKey === lastErrorKey) {
+        consecutiveErrorCount++;
+      } else {
+        lastErrorKey = errorKey;
+        consecutiveErrorCount = 1;
+      }
+
+      if (consecutiveErrorCount >= CIRCUIT_BREAKER_LIMIT) {
+        const toolName = failedBlock?.name ?? "unknown";
+        const errorPreview = failedResults[0].content.slice(0, 200);
+
+        console.log(`[agent] Circuit breaker: ${toolName} failed ${CIRCUIT_BREAKER_LIMIT}x with same error`);
+
+        const breakerMsg = `I'm stuck — \`${toolName}\` failed twice with the same error:\n\n> ${errorPreview}\n\nThis needs a different approach or a fix on your end. What would you like me to try?`;
+
+        await memory.appendHistory(userId, {
+          role: "assistant",
+          content: breakerMsg,
+          timestamp: new Date().toISOString(),
+        }, source);
+
+        events.emitEvent("agent:status", { userId, status: "done", detail: "Circuit breaker" });
+        events.emitEvent("message:out", { userId, text: breakerMsg });
+
+        return { text: breakerMsg, toolsUsed };
+      }
+    } else {
+      // A round with no failures — reset the tracker
+      lastErrorKey = null;
+      consecutiveErrorCount = 0;
+    }
 
     // Add tool results to conversation
     messages.push({ role: "user", content: toolResults });

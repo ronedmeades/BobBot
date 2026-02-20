@@ -316,6 +316,11 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 8. Save assistant response to memory
 9. Emit "message:out" event
 10. Return response
+
+Safety checks at each tool-round boundary:
+- Worker preemption: yields if direct chat is waiting
+- User interrupt: exits if AbortController signal is set (Esc key / /cancel)
+- Circuit breaker: exits if same tool failed with same error twice consecutively
 ```
 
 ### Available Tools (~157 built-in across 33 skill modules + dynamic MCP server tools + 53 knowledge skills)
@@ -928,6 +933,7 @@ Tests focus on exported pure functions — no network calls, no heavy mocking (e
 - [x] Knowledge plugins — Anthropic knowledge-work-plugins integration (11 plugins, 53 skills, tiered injection)
 - [x] Memory system — Two-tier context memory (context.md hot cache + glossary.md decoder ring, decode-first pattern)
 - [x] Two-brain cost mode — dual-provider routing (primary + balanced modes, task complexity assessment, fallback + notify)
+- [x] Agent interrupt + circuit breaker — Esc key (dashboard), /cancel (Telegram), stuck detection (limit 2), write_file validation
 - [ ] Discord server for Bob community
 
 ## Personality Presets
@@ -956,6 +962,14 @@ With ~137 tools loaded on every message, the LLM sometimes "describes" taking an
 
 ### Worker Preemption
 Background tasks used to block direct chat entirely. Fixed with preemption: when a chat message arrives, the worker yields at the next tool-round boundary (5-30s worst case). Implementation in `busy-state.ts` (preempt flag) and `core.ts` (check + wait-for-yield).
+
+### Tool Error Spinning (fixed)
+The LLM would sometimes call a tool with invalid parameters (e.g. `write_file` with `content: undefined`), see the error, and retry the exact same broken call — up to 20 rounds, burning tokens and time. **Three fixes:**
+1. **Circuit breaker** — `core.ts` tracks consecutive identical tool errors (same tool name + same error message). After 2 identical failures (one chance to self-correct), Bob stops and asks the user for help instead of retrying. Any successful tool call resets the tracker.
+2. **User interrupt** — Esc key on the dashboard or `/cancel` command on Telegram. Fires `cancelAgentRun()` which sets an `AbortController` signal, checked at each tool-round boundary. Bob finishes the current tool call, then exits cleanly with a status message.
+3. **Input validation** — `write_file` now rejects `content: null/undefined` with a clear error message instead of crashing with a Node.js type error.
+
+**Design rationale for limit=2:** Unlike traditional circuit breakers (designed for transient network failures where retries make sense), this is stuck detection. The LLM sees the full error in context and has complete agency to self-correct. If it produces the exact same broken call after seeing the error once, it's fundamentally confused — more retries just burn tokens.
 
 ## Notes
 

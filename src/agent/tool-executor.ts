@@ -794,6 +794,14 @@ async function handleWriteFile(input: Record<string, unknown>): Promise<ToolResu
   const append = (input.append as boolean) ?? false;
   const overwrite = (input.overwrite as boolean) ?? false;
 
+  // Validate content parameter
+  if (content == null) {
+    return {
+      success: false,
+      output: "Missing required parameter: content. You must provide the text content to write.",
+    };
+  }
+
   // Block writing to .env files — credentials must go through set_env_var
   if (isBlockedPath(path)) {
     return {

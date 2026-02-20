@@ -1,6 +1,6 @@
 import { Bot, InputFile } from "grammy";
 import { config } from "../config.js";
-import { runAgent } from "../agent/core.js";
+import { runAgent, cancelAgentRun } from "../agent/core.js";
 import { submitTask, setNotifier } from "../tasks/runner.js";
 import { setSchedulerNotifier } from "../tasks/scheduler.js";
 import { setWorkerNotifier } from "../tasks/worker.js";
@@ -150,6 +150,18 @@ export function createBot(): Bot {
     await ctx.reply(`Recent tasks:\n\n${lines.join("\n")}`);
   });
 
+  // /cancel command — interrupt the current agent run
+  bot.command("cancel", async (ctx) => {
+    const userId = String(ctx.from?.id ?? "unknown");
+    const cancelled = cancelAgentRun(userId);
+
+    if (cancelled) {
+      await ctx.reply("Interrupting... I'll stop at the next step.");
+    } else {
+      await ctx.reply("Nothing running right now.");
+    }
+  });
+
   // Regular messages — direct conversation
   bot.on("message:text", async (ctx) => {
     const userId = String(ctx.from?.id ?? "unknown");
@@ -169,19 +181,20 @@ export function createBot(): Bot {
     }, 4000);
     await ctx.replyWithChatAction("typing");
 
-    try {
-      const response = await runAgent(userId, text);
-      clearInterval(typingInterval);
-
-      const chunks = splitMessage(response.text, 4000);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk);
-      }
-    } catch (err) {
-      clearInterval(typingInterval);
-      console.error("Agent error:", err);
-      await ctx.reply("Something went wrong on my end. Give me a sec and try again.");
-    }
+    // Don't await — let grammY process /cancel while this runs
+    runAgent(userId, text)
+      .then(async (response) => {
+        clearInterval(typingInterval);
+        const chunks = splitMessage(response.text, 4000);
+        for (const chunk of chunks) {
+          await ctx.reply(chunk);
+        }
+      })
+      .catch(async (err) => {
+        clearInterval(typingInterval);
+        console.error("Agent error:", err);
+        await ctx.reply("Something went wrong on my end. Give me a sec and try again.");
+      });
   });
 
   // Voice messages — transcribe, process, reply with text + voice
@@ -224,27 +237,34 @@ export function createBot(): Bot {
       const transcript = await transcribeVoice(oggBuffer);
       console.log(`[voice] Transcribed: "${transcript.slice(0, 100)}..."`);
 
-      // Run through agent (same as text)
-      const response = await runAgent(userId, transcript);
-      clearInterval(typingInterval);
+      // Don't await — let grammY process /cancel while this runs
+      runAgent(userId, transcript)
+        .then(async (response) => {
+          clearInterval(typingInterval);
 
-      // Always send text reply
-      const chunks = splitMessage(response.text, 4000);
-      for (const chunk of chunks) {
-        await ctx.reply(chunk);
-      }
+          // Always send text reply
+          const chunks = splitMessage(response.text, 4000);
+          for (const chunk of chunks) {
+            await ctx.reply(chunk);
+          }
 
-      // Also send voice reply (best-effort)
-      try {
-        const voiceBuffer = await synthesizeSpeech(response.text);
-        await ctx.replyWithVoice(new InputFile(voiceBuffer, "response.ogg"));
-      } catch (ttsErr) {
-        console.error("[voice] TTS failed:", ttsErr);
-        // Non-fatal — text reply already sent
-      }
+          // Also send voice reply (best-effort)
+          try {
+            const voiceBuffer = await synthesizeSpeech(response.text);
+            await ctx.replyWithVoice(new InputFile(voiceBuffer, "response.ogg"));
+          } catch (ttsErr) {
+            console.error("[voice] TTS failed:", ttsErr);
+            // Non-fatal — text reply already sent
+          }
+        })
+        .catch(async (err) => {
+          clearInterval(typingInterval);
+          console.error("Voice agent error:", err);
+          await ctx.reply("Had trouble with that voice message. Try again or send text instead.");
+        });
     } catch (err) {
       clearInterval(typingInterval);
-      console.error("Voice agent error:", err);
+      console.error("Voice transcription error:", err);
       await ctx.reply("Had trouble with that voice message. Try again or send text instead.");
     }
   });

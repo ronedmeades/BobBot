@@ -4,7 +4,7 @@ import { resolve, dirname, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { config } from "../config.js";
 import { events, type BobEvent } from "./events.js";
-import { runAgent } from "../agent/core.js";
+import { runAgent, cancelAgentRun } from "../agent/core.js";
 import { getTasksForUser } from "../tasks/runner.js";
 import { getTask, createTask, cancelTask, getAllTasks } from "../tasks/queue.js";
 import { getCurrentTaskId } from "../tasks/worker.js";
@@ -266,6 +266,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
       const msg = err instanceof Error ? err.message : String(err);
       error(res, msg, 500);
     }
+    return;
+  }
+
+  // POST /api/chat/cancel — interrupt the current agent run
+  if (method === "POST" && url === "/api/chat/cancel") {
+    const cancelled = cancelAgentRun(OWNER_USER_ID);
+    json(res, { cancelled });
     return;
   }
 

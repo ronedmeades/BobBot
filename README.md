@@ -273,6 +273,7 @@ Bob has **170+ tools across 35 skill modules**, plus domain expertise from **11 
 - **MCP servers** — connect to Model Context Protocol servers for plug-and-play tool expansion
 - **Knowledge plugins** — built-in domain expertise for data analytics, finance, sales, legal, marketing, product management, customer support, and more
 - **Analytics** — search conversation history, tool usage stats, event log (SQLite-powered)
+- **Self-correcting agent loop** — Bob detects when he's stuck (repeated identical tool errors) and stops to ask for help instead of spinning. Includes a circuit breaker that catches the issue after the first failed self-correction attempt, and user interrupt support (Esc on dashboard, `/cancel` on Telegram) so you can break in at any time
 
 **Agent-to-Agent (A2A):**
 - **Bob-to-Bob communication** — your Bob can discover and talk to other Bobs using the open A2A protocol

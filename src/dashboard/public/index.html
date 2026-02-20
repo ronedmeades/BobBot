@@ -771,6 +771,29 @@
     return div;
   }
 
+  // --- Interrupt support (Esc key) ---
+  const DEFAULT_PLACEHOLDER = 'Message Bob... (Enter to send, Shift+Enter for new line)';
+  const BUSY_PLACEHOLDER = 'Bob is working... (hit Esc to interrupt)';
+  let cancelInFlight = false;
+
+  async function cancelCurrentRun() {
+    if (cancelInFlight || !isProcessing) return;
+    cancelInFlight = true;
+    try {
+      await authFetch('/api/chat/cancel', { method: 'POST' });
+    } catch (e) {
+      console.error('Cancel failed:', e);
+    }
+    cancelInFlight = false;
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isProcessing) {
+      e.preventDefault();
+      cancelCurrentRun();
+    }
+  });
+
   // --- Message queue (non-blocking input) ---
   const messageQueue = [];
   let isProcessing = false;
@@ -801,6 +824,7 @@
   async function processQueue() {
     if (isProcessing || messageQueue.length === 0) return;
     isProcessing = true;
+    document.getElementById('chat-input').placeholder = BUSY_PLACEHOLDER;
 
     while (messageQueue.length > 0) {
       const text = messageQueue.shift();
@@ -829,6 +853,7 @@
     }
 
     isProcessing = false;
+    document.getElementById('chat-input').placeholder = DEFAULT_PLACEHOLDER;
     updateQueueIndicator();
   }
 
