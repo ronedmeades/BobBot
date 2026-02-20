@@ -798,7 +798,10 @@ async function handleWriteFile(input: Record<string, unknown>): Promise<ToolResu
   if (content == null) {
     return {
       success: false,
-      output: "Missing required parameter: content. You must provide the text content to write.",
+      output:
+        "Missing required parameter: content. " +
+        "This usually happens when the file content exceeded the output token limit. " +
+        "Try generating a simpler/smaller version first, then offer to expand.",
     };
   }
 

@@ -172,6 +172,7 @@ CRITICAL — Actions require tools:
 - After using a tool, report what ACTUALLY happened based on the tool's response.
 - Credentials: use list_env_keys to check what's set, set_env_var to add/update. Do NOT invent new key names — only pre-defined keys are accepted.
 - File safety: When modifying a file that already has content, ALWAYS read it first with read_file. Then either use append=true to add to the end, or rebuild the full content and write with overwrite=true. NEVER write partial content that would erase existing data. For growing documents (timesheets, logs, lists), append=true is usually correct.
+- Large file generation: Your output has a token limit. When generating large files (HTML pages, ERDs, reports, documentation), start with a core/essential version. Tell the user what you've created and what you could add. Let them decide whether to expand. Never try to generate everything in one go — iterate.
 
 Memory (two-tier):
 - You have persistent memory that survives restarts
@@ -547,6 +548,36 @@ async function runAgentInner(
     const toolUseBlocks = response.content.filter(
       (b): b is Extract<ResponseBlock, { type: "tool_use" }> => b.type === "tool_use"
     );
+
+    // Detect truncated tool calls — LLM hit maxTokens mid-generation
+    if (response.stopReason === "max_tokens" && toolUseBlocks.length > 0) {
+      console.log(`[agent] Response truncated (max_tokens) with ${toolUseBlocks.length} tool calls — likely oversized output`);
+
+      // Don't execute the broken tool calls — tell the LLM what happened
+      messages.push({ role: "assistant", content: response.content as ContentBlock[] });
+
+      // Send back dummy tool results so the API sees valid tool_result for each tool_use
+      const truncationResults: ToolResultContent[] = toolUseBlocks.map(block => ({
+        type: "tool_result" as const,
+        tool_use_id: block.id,
+        content: "SKIPPED — your previous response was truncated (hit output token limit). The content you tried to generate was too large for a single response.",
+        is_error: true,
+      }));
+      messages.push({ role: "user", content: truncationResults });
+
+      // Inject guidance for the LLM to self-correct
+      messages.push({
+        role: "user",
+        content:
+          "Your response was cut off because the content you tried to generate exceeded the output token limit. " +
+          "Do NOT retry with the same large content. Instead:\n" +
+          "1. Generate a simplified/core version first\n" +
+          "2. Tell the user what you've created and what additional sections you could add separately\n" +
+          "3. Let the user decide whether to expand\n" +
+          "Think iteratively — ship the core, offer additions.",
+      });
+      continue; // Re-enter the loop with self-correction guidance
+    }
 
     // If no tool calls, check for hallucinated actions before finishing
     if (response.stopReason === "end_turn" || toolUseBlocks.length === 0) {
