@@ -11,6 +11,7 @@ import type {
   ChatOptions,
   VisionOptions,
   ProviderResponse,
+  VisionResponse,
   Message,
   ContentBlock,
   ResponseBlock,
@@ -149,7 +150,7 @@ export class GeminiProvider implements LLMProvider {
     return { content, stopReason };
   }
 
-  async vision(options: VisionOptions): Promise<string> {
+  async vision(options: VisionOptions): Promise<VisionResponse> {
     const model = this.client.getGenerativeModel({
       model: options.model,
       generationConfig: {
@@ -174,7 +175,10 @@ export class GeminiProvider implements LLMProvider {
       ],
     });
 
-    return result.response.text() || "(no response)";
+    const text = result.response.text() || "(no response)";
+    const candidate = result.response.candidates?.[0];
+    const truncated = candidate?.finishReason === "MAX_TOKENS";
+    return { text, truncated };
   }
 }
 

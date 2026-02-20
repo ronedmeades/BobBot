@@ -141,7 +141,10 @@ export async function handleSummarizeDocument(
     });
 
     const textBlocks = response.content.filter((b) => b.type === "text");
-    const summary = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+    let summary = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+    if (response.stopReason === "max_tokens") {
+      summary += '\n\n...\n\n*Long response, type "continue" to continue.*';
+    }
 
     return { success: true, output: summary };
   } catch (err) {
@@ -193,7 +196,10 @@ export async function handleSummarizeUrl(
     });
 
     const textBlocks = llmResponse.content.filter((b) => b.type === "text");
-    const summary = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+    let summary = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+    if (llmResponse.stopReason === "max_tokens") {
+      summary += '\n\n...\n\n*Long response, type "continue" to continue.*';
+    }
 
     return { success: true, output: summary };
   } catch (err) {

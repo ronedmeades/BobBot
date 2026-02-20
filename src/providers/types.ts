@@ -84,6 +84,11 @@ export interface ProviderResponse {
   stopReason: "end_turn" | "tool_use" | "max_tokens";
 }
 
+export interface VisionResponse {
+  text: string;
+  truncated: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Chat & vision options
 // ---------------------------------------------------------------------------
@@ -122,5 +127,5 @@ export interface LLMConfig {
 export interface LLMProvider {
   readonly name: string;
   chat(options: ChatOptions): Promise<ProviderResponse>;
-  vision(options: VisionOptions): Promise<string>;
+  vision(options: VisionOptions): Promise<VisionResponse>;
 }

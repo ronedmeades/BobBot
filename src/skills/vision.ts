@@ -73,7 +73,7 @@ export async function handleAnalyzeImage(input: Record<string, unknown>): Promis
   const mediaType = getMediaType(imagePath);
 
   const provider = getProvider(config.llm);
-  const text = await provider.vision({
+  const result = await provider.vision({
     model: config.llm.model,
     maxTokens: 2048,
     imageBase64: base64,
@@ -81,7 +81,9 @@ export async function handleAnalyzeImage(input: Record<string, unknown>): Promis
     prompt,
   });
 
-  return { success: true, output: text || "(no response)" };
+  let output = result.text || "(no response)";
+  if (result.truncated) output += '\n\n...\n\n*Long response, type "continue" to continue.*';
+  return { success: true, output };
 }
 
 export async function handleAnalyzePosterForListing(input: Record<string, unknown>): Promise<ToolResult> {
@@ -95,7 +97,7 @@ export async function handleAnalyzePosterForListing(input: Record<string, unknow
   const extraContext = additionalInfo ? `\n\nAdditional info provided by the seller: ${additionalInfo}` : "";
 
   const provider = getProvider(config.llm);
-  const text = await provider.vision({
+  const result = await provider.vision({
     model: config.llm.model,
     maxTokens: 2048,
     imageBase64: base64,
@@ -121,5 +123,7 @@ Return ONLY valid JSON with this exact structure:
 Be specific and descriptive. The title should be optimized for eBay search (include key terms buyers would search for). The description should be compelling and professional.`,
   });
 
-  return { success: true, output: text || "(no response)" };
+  let output = result.text || "(no response)";
+  if (result.truncated) output += '\n\n...\n\n*Long response, type "continue" to continue.*';
+  return { success: true, output };
 }

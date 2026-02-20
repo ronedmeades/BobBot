@@ -968,7 +968,13 @@ The LLM would sometimes call a tool with invalid parameters (e.g. `write_file` w
 1. **Circuit breaker** — `core.ts` tracks consecutive identical tool errors (same tool name + same error message). After 2 identical failures (one chance to self-correct), Bob stops and asks the user for help instead of retrying. Any successful tool call resets the tracker.
 2. **User interrupt** — Esc key on the dashboard or `/cancel` command on Telegram. Fires `cancelAgentRun()` which sets an `AbortController` signal, checked at each tool-round boundary. Bob finishes the current tool call, then exits cleanly with a status message.
 3. **Input validation** — `write_file` now rejects `content: null/undefined` with a clear error message instead of crashing with a Node.js type error.
-4. **Truncation awareness** — When `stopReason === "max_tokens"` and tool calls are present, the agent detects the response was cut off, skips the broken tool calls, and injects self-correction guidance telling the LLM to generate a simpler version first and offer additions. Three layers: (1) truncation detection in agent loop before tool execution, (2) better `write_file` error hinting at token limit cause, (3) system prompt teaches iterative generation for large files.
+4. **Truncation awareness** — Complete truncation handling across the codebase:
+   - **Tool call truncation** — When `stopReason === "max_tokens"` with tool calls present, the agent detects the response was cut off, skips broken tool calls, and injects guidance to generate a simpler version first.
+   - **Text response truncation** — When `stopReason === "max_tokens"` with no tool calls (pure text), appends `"...\n\n*Long response, type "continue" to continue.*"`. User says "continue" and the LLM picks up naturally from conversation context.
+   - **Vision truncation** — `VisionResponse` type (`{ text, truncated }`) replaces bare `string` return from `provider.vision()`. All 3 providers (Anthropic, OpenAI, Gemini) now capture stop/finish reason. Vision skills check `.truncated` and append continuation indicator.
+   - **Skill-level truncation** — 5 skills with direct LLM calls (vision, summarizer, translation, social-media) check `stopReason` or `truncated` on every call site (9 total) and append continuation indicator when truncated.
+   - **Input validation** — `write_file` rejects `content: null/undefined` with a clear error hinting at token limits.
+   - **System prompt** — Teaches iterative generation for large files.
 
 **Design rationale for limit=2:** Unlike traditional circuit breakers (designed for transient network failures where retries make sense), this is stuck detection. The LLM sees the full error in context and has complete agency to self-correct. If it produces the exact same broken call after seeing the error once, it's fundamentally confused — more retries just burn tokens.
 

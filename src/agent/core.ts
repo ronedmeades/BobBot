@@ -581,7 +581,13 @@ async function runAgentInner(
 
     // If no tool calls, check for hallucinated actions before finishing
     if (response.stopReason === "end_turn" || toolUseBlocks.length === 0) {
-      const finalText = (textBlocks.join("\n") || "(No response)") + fallbackNotice;
+      let finalText = (textBlocks.join("\n") || "(No response)") + fallbackNotice;
+
+      // Detect text truncation — append indicator so user can ask to continue
+      if (response.stopReason === "max_tokens") {
+        console.log("[agent] Text response truncated (max_tokens) — appending continuation indicator");
+        finalText += '\n\n...\n\n*Long response, type "continue" to continue.*';
+      }
 
       // Guard: detect when Bob claims to have done something without using the tool
       const missed = detectUnusedActions(finalText, toolsUsed);

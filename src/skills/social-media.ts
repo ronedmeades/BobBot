@@ -262,13 +262,15 @@ export async function handleGenerateSocialPost(
 
       if (imageBase64) {
         // Use vision to analyze image + generate post
-        postText = await provider.vision({
+        const visionResult = await provider.vision({
           model: config.llm.model,
           maxTokens: 1024,
           imageBase64,
           mediaType,
           prompt,
         });
+        postText = visionResult.text;
+        if (visionResult.truncated) postText += '\n\n...\n\n*Long response, type "continue" to continue.*';
       } else {
         // Text-only generation via chat
         const response = await provider.chat({
@@ -280,6 +282,7 @@ export async function handleGenerateSocialPost(
         });
         const textBlocks = response.content.filter((b) => b.type === "text");
         postText = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+        if (response.stopReason === "max_tokens") postText += '\n\n...\n\n*Long response, type "continue" to continue.*';
       }
 
       const charCount = postText.length;
@@ -334,7 +337,10 @@ export async function handleSuggestSocialHashtags(
         messages: [{ role: "user", content: prompt }],
       });
       const textBlocks = response.content.filter((b) => b.type === "text");
-      const hashtags = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+      let hashtags = textBlocks.map((b) => b.text).join("\n") || "(no response)";
+      if (response.stopReason === "max_tokens") {
+        hashtags += '\n\n...\n\n*Long response, type "continue" to continue.*';
+      }
 
       results.push(`--- ${spec.label} ---\n${hashtags.trim()}`);
     } catch (err) {

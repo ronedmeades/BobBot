@@ -4,6 +4,7 @@ import type {
   ChatOptions,
   VisionOptions,
   ProviderResponse,
+  VisionResponse,
   Message,
   ContentBlock,
   ResponseBlock,
@@ -155,7 +156,7 @@ export class OpenAIProvider implements LLMProvider {
     return { content, stopReason };
   }
 
-  async vision(options: VisionOptions): Promise<string> {
+  async vision(options: VisionOptions): Promise<VisionResponse> {
     const response = await this.client.chat.completions.create({
       model: options.model,
       max_tokens: options.maxTokens,
@@ -175,6 +176,8 @@ export class OpenAIProvider implements LLMProvider {
       ],
     });
 
-    return response.choices[0]?.message.content ?? "(no response)";
+    const text = response.choices[0]?.message.content ?? "(no response)";
+    const truncated = response.choices[0]?.finish_reason === "length";
+    return { text, truncated };
   }
 }

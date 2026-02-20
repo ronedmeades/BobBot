@@ -78,10 +78,14 @@ export async function handleTranslateText(input: Record<string, unknown>): Promi
     });
 
     const textBlocks = response.content.filter((b) => b.type === "text");
-    const result = textBlocks.map((b) => b.text).join("\n");
+    let result = textBlocks.map((b) => b.text).join("\n");
 
     if (!result) {
       return { success: false, output: "Translation returned empty result." };
+    }
+
+    if (response.stopReason === "max_tokens") {
+      result += '\n\n...\n\n*Long response, type "continue" to continue.*';
     }
 
     return { success: true, output: result };
@@ -116,10 +120,14 @@ export async function handleDetectLanguage(input: Record<string, unknown>): Prom
     });
 
     const textBlocks = response.content.filter((b) => b.type === "text");
-    const result = textBlocks.map((b) => b.text).join("\n");
+    let result = textBlocks.map((b) => b.text).join("\n");
 
     if (!result) {
       return { success: false, output: "Language detection returned empty result." };
+    }
+
+    if (response.stopReason === "max_tokens") {
+      result += '\n\n...\n\n*Long response, type "continue" to continue.*';
     }
 
     return { success: true, output: result };

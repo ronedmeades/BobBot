@@ -4,6 +4,7 @@ import type {
   ChatOptions,
   VisionOptions,
   ProviderResponse,
+  VisionResponse,
   Message,
   ContentBlock,
   ResponseBlock,
@@ -59,7 +60,7 @@ export class AnthropicProvider implements LLMProvider {
     return { content, stopReason } satisfies ProviderResponse;
   }
 
-  async vision(options: VisionOptions): Promise<string> {
+  async vision(options: VisionOptions): Promise<VisionResponse> {
     const response = await this.client.messages.create({
       model: options.model,
       max_tokens: options.maxTokens,
@@ -81,9 +82,11 @@ export class AnthropicProvider implements LLMProvider {
       ],
     });
 
-    return response.content
+    const text = response.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
       .map((b) => b.text)
       .join("\n");
+
+    return { text, truncated: response.stop_reason === "max_tokens" };
   }
 }
