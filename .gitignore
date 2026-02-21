@@ -33,6 +33,9 @@ desktop.ini
 .env.*.local
 *.pem
 *.key
+ebay-tokens.json
+ebay-access-token.tmp
+*.tmp
 
 # Runtime data
 memory/
