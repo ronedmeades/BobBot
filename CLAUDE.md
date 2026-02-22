@@ -136,7 +136,7 @@ bob/
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
 ├── vitest.config.ts       # Test runner config (ESM, node environment)
-├── tests/                 # Test suite (160 tests across 9 files)
+├── tests/                 # Test suite (207 tests across 9 files)
 │   ├── config.test.ts             # Config defaults, validateConfig
 │   ├── agent/
 │   │   ├── core.test.ts           # Hallucination guard (detectUnusedActions)
@@ -195,7 +195,7 @@ bob/
     │   ├── memory.ts      # Per-user conversation history + notes + owner context (JSON/markdown files)
     │   ├── tools.ts       # Tool definitions (what the LLM can choose to use)
     │   ├── tool-executor.ts  # Tool dispatch — routes tool calls to skill handlers
-    │   ├── tool-loader.ts    # Category-based tool selection (keyword matching)
+    │   ├── tool-loader.ts    # Category-based tool selection (keyword matching) + local skills prompt
     │   └── plugin-loader.ts  # Knowledge plugin loader (Anthropic format, tiered injection)
     ├── bot/
     │   └── telegram.ts    # Telegram bot: message handling, /task, /status, lifecycle
@@ -254,7 +254,7 @@ bob/
     │   ├── a2a-client.ts        # A2A client tools (discover, send, peers, trust, audit)
     │   ├── mcp-manager.ts       # MCP server management tools (add, remove, list, reconnect, toggle)
     │   ├── analytics.ts         # Search history, tool stats, event log (SQLite-powered)
-    │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/
+    │   └── local-loader.ts      # Auto-discover and hot-load skills from local/skills/ (dedup on load)
     ├── a2a/
     │   ├── types.ts       # A2A protocol interfaces (PeerAgent, AgentCard, JSON-RPC, etc.)
     │   ├── registry.ts    # Peer registry + per-peer tokens + trust tiers + rate limits
@@ -276,7 +276,7 @@ bob/
         ├── types.ts       # Task state types (pending/running/completed/failed)
         ├── runner.ts      # Background task execution + user notification + events
         ├── worker.ts      # Autonomous task worker loop (30s polling, step-based execution)
-        ├── busy-state.ts  # Prevents concurrent agent loops
+        ├── busy-state.ts  # Prevents concurrent agent loops + current task tracking
         ├── escalation.ts  # Multi-channel notification chains (Telegram → SMS → call) with auto-acknowledge
         └── scheduler.ts   # Hourly scheduler: auto-backup, scheduled tasks, web monitors, calendar reminders, standing rules
 ```
@@ -305,24 +305,27 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 - **No test file litter** — Bob must use `node -e "..."` or skill tools, not create temp scripts in the project root.
 - **Credential guidance** — Bob cannot read `.env` directly. Must use `list_env_keys` to check and `set_env_var` to update.
 - **Hallucination guard** — `detectUnusedActions()` catches claims without tool calls, re-enters agent loop with correction prompt. Covers: calls, SMS, calendar, reminders, emails, file writes.
+- **Local skill awareness** — System prompt explicitly lists all local skills under "Your personal local skills" section. "Using tools wisely" guardrail instructs Bob to check existing tools before writing new skills or proposing workarounds.
+- **Fast-path status** — `isStatusCheck()` detects ~17 common status phrases ("what are you doing?", "status", "any progress", etc.) and answers instantly from in-memory task state — no LLM call, no worker preemption, no token burn.
 
 ### Agent Loop (src/agent/core.ts)
 
 ```
 1. Receive user message (from Telegram or dashboard)
-2. Emit "message:in" event to event bus
-3. Load conversation history from memory (last 20 messages for context)
-4. Load owner context (memory/context.md) + build system prompt + select plugin knowledge + select tools
-5. Send to Claude API with system prompt + tool definitions
-6. If Claude wants to use tools → emit "tool:call", execute, emit "tool:result", loop
-7. Repeat until Claude gives a final text response (max 20 tool rounds)
-8. Save assistant response to memory
-9. Emit "message:out" event
-10. Return response
+2. Fast-path check: status queries ("what are you doing?") answered instantly from memory — no LLM call
+3. Emit "message:in" event to event bus
+4. Load conversation history from memory (last 20 messages for context)
+5. Load owner context (memory/context.md) + build system prompt + select plugin knowledge + select tools
+6. Send to Claude API with system prompt + tool definitions + AbortSignal
+7. If Claude wants to use tools → emit "tool:call", execute, emit "tool:result", loop
+8. Repeat until Claude gives a final text response (max 20 tool rounds)
+9. Save assistant response to memory
+10. Emit "message:out" event
+11. Return response
 
 Safety checks at each tool-round boundary:
 - Worker preemption: yields if direct chat is waiting
-- User interrupt: exits if AbortController signal is set (Esc key / /cancel)
+- User pause: AbortSignal passed to LLM API — Esc key aborts mid-flight (~1s), checked after LLM + before each tool
 - Circuit breaker: exits if same tool failed with same error twice consecutively
 ```
 
@@ -875,11 +878,11 @@ pnpm test             # Run tests (vitest)
 
 ### Test Suite
 
-195 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
+207 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
 
 | Area | File | Tests | What it covers |
 |------|------|-------|----------------|
-| Agent | `tests/agent/core.test.ts` | 47 | Hallucination guard, personality presets, isSimpleTask, resolveProvider routing |
+| Agent | `tests/agent/core.test.ts` | 59 | Hallucination guard, personality presets, isSimpleTask, isStatusCheck, resolveProvider routing |
 | Agent | `tests/agent/tool-loader.test.ts` | 29 | Category-based tool selection, keyword matching, meta-tools, countMatchedCategories |
 | Agent | `tests/agent/plugin-loader.test.ts` | 17 | YAML frontmatter parsing, keyword extraction, stop words |
 | Skills | `tests/skills/reminders.test.ts` | 29 | Natural language time parsing, snooze duration, formatting |
@@ -978,7 +981,7 @@ Background tasks used to block direct chat entirely. Fixed with preemption: when
 ### Tool Error Spinning (fixed)
 The LLM would sometimes call a tool with invalid parameters (e.g. `write_file` with `content: undefined`), see the error, and retry the exact same broken call — up to 20 rounds, burning tokens and time. **Three fixes:**
 1. **Circuit breaker** — `core.ts` tracks consecutive identical tool errors (same tool name + same error message). After 2 identical failures (one chance to self-correct), Bob stops and asks the user for help instead of retrying. Any successful tool call resets the tracker.
-2. **User interrupt** — Esc key on the dashboard or `/cancel` command on Telegram. Fires `cancelAgentRun()` which sets an `AbortController` signal, checked at each tool-round boundary. Bob finishes the current tool call, then exits cleanly with a status message.
+2. **User pause/resume** — Esc key on the dashboard or `/cancel` command on Telegram. `AbortSignal` is passed directly to all 3 LLM provider SDK calls — Esc aborts the API call mid-flight (~1s). Additional abort checkpoints after LLM response and before each tool execution. Framed as "pause" with tool call summaries and option to say "continue" to resume (conversation history is preserved). Dashboard shows "Pausing..." immediately on Esc.
 3. **Input validation** — `write_file` now rejects `content: null/undefined` with a clear error message instead of crashing with a Node.js type error.
 4. **Truncation awareness** — Complete truncation handling across the codebase:
    - **Tool call truncation** — When `stopReason === "max_tokens"` with tool calls present, the agent detects the response was cut off, skips broken tool calls, and injects guidance to generate a simpler version first.
