@@ -39,7 +39,7 @@ export const taskManagerToolDefinitions: ToolDefinition[] = [
         tags: {
           type: "array",
           items: { type: "string" },
-          description: "Optional tags for organization (e.g. ['vitalos', 'research'])",
+          description: "Optional tags for organization (e.g. ['project', 'research'])",
         },
         notify_via: {
           type: "array",
