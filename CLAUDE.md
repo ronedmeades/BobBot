@@ -112,6 +112,8 @@ Shortcuts:
 - **pdf-lib** — PDF form parsing, filling, and invoice generation
 - **exceljs** — Excel/spreadsheet reading
 - **playwright** — Browser automation (Chromium, lazy-launched)
+- **playwright-extra** + **puppeteer-extra-plugin-stealth** — Stealth browsing (anti-bot detection)
+- **fingerprint-generator** + **fingerprint-injector** — ML-based browser fingerprint rotation
 - **edge-tts** — Text-to-speech via Microsoft Edge (free, no API key)
 - **fluent-ffmpeg** + **ffmpeg-static** — Audio format conversion (MP3→OGG/Opus for Telegram)
 
@@ -241,6 +243,7 @@ bob/
     │   ├── weather.ts           # Weather and forecasts via wttr.in (no API key)
     │   ├── translation.ts       # LLM-powered translation and language detection
     │   ├── browser.ts           # Playwright browser automation (Chromium, lazy-launched)
+    │   ├── stealth-browser.ts   # Anti-bot stealth browsing (fingerprint rotation, network interception)
     │   ├── phone.ts             # Twilio phone calls & SMS (owner-only, no new deps)
     │   ├── google-calendar.ts   # Google Calendar API (OAuth2, same client as Gmail)
     │   ├── env-manager.ts       # Safely set/list .env vars (allowlisted keys only)
@@ -323,7 +326,7 @@ Safety checks at each tool-round boundary:
 - Circuit breaker: exits if same tool failed with same error twice consecutively
 ```
 
-### Available Tools (~157 built-in across 33 skill modules + dynamic MCP server tools + 53 knowledge skills)
+### Available Tools (~162 built-in across 34 skill modules + dynamic MCP server tools + 53 knowledge skills)
 
 **Core Tools (14):**
 | Tool | What It Does |
@@ -550,6 +553,15 @@ Safety checks at each tool-round boundary:
 | `extract_content` | Extract text, HTML, or attributes from elements |
 | `take_screenshot` | Screenshot the current page (viewport or full page) |
 | `close_browser` | Close the browser instance |
+
+**Stealth Browser (5)** — requires `playwright-extra`, `puppeteer-extra-plugin-stealth`, `fingerprint-generator`, `fingerprint-injector`:
+| Tool | What It Does |
+|------|-------------|
+| `stealth_browse` | Navigate with stealth plugin, fingerprint rotation, human-like delays (random mouse, scroll) |
+| `intercept_network` | Capture XHR/fetch API responses matching URL patterns (regex or substring) |
+| `get_intercepted_data` | Retrieve captured JSON API responses (structured data from SPAs) |
+| `stealth_scroll` | Human-like scrolling with random delays and mouse movements |
+| `stealth_close` | Close stealth browser, clear fingerprint and intercepted data |
 
 **Phone Calls & SMS (3)** — requires Twilio account:
 | Tool | What It Does |
