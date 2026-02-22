@@ -75,6 +75,7 @@ interface InterceptedResponse {
   method: string;
   status: number;
   contentType: string;
+  requestHeaders: Record<string, string>;
   body: string;
   timestamp: number;
 }
@@ -156,7 +157,7 @@ async function humanLikeBrowse(pg: any, url: string): Promise<void> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function attachNetworkInterception(pg: any): void {
-  pg.on("response", async (response: { url(): string; headers(): Record<string, string>; status(): number; text(): Promise<string>; request(): { method(): string } }) => {
+  pg.on("response", async (response: { url(): string; headers(): Record<string, string>; status(): number; text(): Promise<string>; request(): { method(): string; headers(): Record<string, string> } }) => {
     try {
       const url = response.url();
       const contentType = response.headers()["content-type"] ?? "";
@@ -181,11 +182,15 @@ function attachNetworkInterception(pg: any): void {
         interceptedData.shift();
       }
 
+      // Capture request headers — this is the key to replaying the call via fetch_url
+      const reqHeaders = response.request().headers();
+
       interceptedData.push({
         url,
         method: response.request().method(),
         status: response.status(),
         contentType,
+        requestHeaders: reqHeaders,
         body: body.length > 50_000 ? body.slice(0, 50_000) + "\n...[truncated]" : body,
         timestamp: Date.now(),
       });
@@ -334,9 +339,11 @@ export const stealthBrowserToolDefinitions: ToolDefinition[] = [
     name: "get_intercepted_data",
     description:
       "Retrieve captured API responses from network interception. " +
-      "Returns JSON bodies from XHR/fetch calls matching the patterns set by intercept_network. " +
-      "This is how you extract product data from SPAs — the JSON API responses contain structured data " +
-      "(nutrition, pricing, etc.) that's much more reliable than scraping rendered HTML.",
+      "Returns JSON bodies AND full request headers (cookies, authorization, user-agent) from " +
+      "XHR/fetch calls matching the patterns set by intercept_network. " +
+      "This is the key to cutting out the browser — once you see the API endpoint and headers, " +
+      "you can replay the call directly with fetch_url (no browser needed). " +
+      "The request headers contain everything needed to reproduce the call.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -351,6 +358,10 @@ export const stealthBrowserToolDefinitions: ToolDefinition[] = [
         json_only: {
           type: "boolean",
           description: "Only return responses with JSON content-type (default: true)",
+        },
+        include_headers: {
+          type: "boolean",
+          description: "Include full request headers for each captured call (default: true). Shows cookies, auth tokens, user-agent — everything needed to replay via fetch_url.",
         },
       },
       required: [],
@@ -491,6 +502,7 @@ export async function handleGetInterceptedData(
   const filterUrl = input.filter_url as string | undefined;
   const limit = Math.min((input.limit as number) ?? 20, MAX_INTERCEPTED);
   const jsonOnly = (input.json_only as boolean) ?? true;
+  const includeHeaders = (input.include_headers as boolean) ?? true;
 
   if (interceptedData.length === 0) {
     return {
@@ -517,13 +529,30 @@ export async function handleGetInterceptedData(
     const bodyPreview = r.body.length > 5000
       ? r.body.slice(0, 5000) + "\n...[truncated, full body available]"
       : r.body;
-    return `--- Response ${i + 1} ---\n${r.method} ${r.url}\nStatus: ${r.status} | Type: ${r.contentType}\n${bodyPreview}`;
+
+    let entry = `--- Response ${i + 1} ---\n${r.method} ${r.url}\nStatus: ${r.status} | Type: ${r.contentType}`;
+
+    if (includeHeaders && r.requestHeaders) {
+      // Show request headers — the replay recipe for fetch_url
+      const headerLines = Object.entries(r.requestHeaders)
+        .map(([k, v]) => `  ${k}: ${v}`)
+        .join("\n");
+      entry += `\n\nRequest Headers (use these with fetch_url to replay directly):\n${headerLines}`;
+    }
+
+    entry += `\n\nResponse Body:\n${bodyPreview}`;
+    return entry;
   });
 
-  return {
-    success: true,
-    output: `${results.length} intercepted response(s) (${interceptedData.length} total captured):\n\n${formatted.join("\n\n")}`,
-  };
+  let output = `${results.length} intercepted response(s) (${interceptedData.length} total captured):\n\n${formatted.join("\n\n")}`;
+
+  if (results.length > 0) {
+    output += "\n\n---\nTIP: You now have the API endpoint + request headers. " +
+      "You can call this API directly with fetch_url using these headers — no browser needed. " +
+      "Close the stealth browser with stealth_close and use fetch_url for subsequent calls.";
+  }
+
+  return { success: true, output };
 }
 
 export async function handleStealthScroll(
