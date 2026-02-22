@@ -132,11 +132,17 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
   },
   {
     name: "browser",
-    description: "Playwright browser automation (navigate, click, type, screenshot)",
-    keywords: ["browse", "browser", "website", "web page", "screenshot", "playwright", "scrape"],
+    description: "Playwright browser automation (navigate, click, type, screenshot) + stealth browsing with anti-bot detection",
+    keywords: [
+      "browse", "browser", "website", "web page", "screenshot", "playwright", "scrape",
+      "stealth", "incapsula", "imperva", "cloudflare", "bot detection", "fingerprint",
+      "intercept", "xhr", "api response", "albertsons",
+    ],
     toolNames: [
       "browse_url", "click_element", "type_into",
       "extract_content", "take_screenshot", "close_browser",
+      "stealth_browse", "intercept_network", "get_intercepted_data",
+      "stealth_scroll", "stealth_close",
     ],
   },
   {

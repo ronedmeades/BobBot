@@ -23,6 +23,7 @@ import { summarizerToolDefinitions } from "../skills/summarizer.js";
 import { fileOrganizerToolDefinitions } from "../skills/file-organizer.js";
 import { quickCaptureToolDefinitions } from "../skills/quick-capture.js";
 import { browserToolDefinitions } from "../skills/browser.js";
+import { stealthBrowserToolDefinitions } from "../skills/stealth-browser.js";
 import { phoneToolDefinitions } from "../skills/phone.js";
 import { marketplaceToolDefinitions } from "../skills/marketplace.js";
 import { googleCalendarToolDefinitions } from "../skills/google-calendar.js";
@@ -311,6 +312,8 @@ const builtinTools: ToolDefinition[] = [
   ...quickCaptureToolDefinitions,
   // Browser automation (Playwright)
   ...browserToolDefinitions,
+  // Stealth browser (anti-bot detection)
+  ...stealthBrowserToolDefinitions,
   // Phone calls & SMS (Twilio)
   ...phoneToolDefinitions,
   // Marketplace engine (eBay, Etsy, Poshmark, local adapters)

@@ -79,6 +79,13 @@ const BLOCKED_TOOLS = new Set([
   "take_screenshot",
   "close_browser",
 
+  // Stealth browser — anti-bot detection, network interception
+  "stealth_browse",
+  "intercept_network",
+  "get_intercepted_data",
+  "stealth_scroll",
+  "stealth_close",
+
   // Background task management — system level
   "create_background_task",
   "list_background_tasks",

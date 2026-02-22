@@ -153,6 +153,13 @@ import {
   handleCloseBrowser,
 } from "../skills/browser.js";
 import {
+  handleStealthBrowse,
+  handleInterceptNetwork,
+  handleGetInterceptedData,
+  handleStealthScroll,
+  handleStealthClose,
+} from "../skills/stealth-browser.js";
+import {
   handleCallOwner,
   handleSendSms,
   handleGetCallStatus,
@@ -570,6 +577,17 @@ export async function executeTool(
         return await handleTakeScreenshot(input);
       case "close_browser":
         return await handleCloseBrowser();
+      // Stealth browser automation
+      case "stealth_browse":
+        return await handleStealthBrowse(input);
+      case "intercept_network":
+        return await handleInterceptNetwork(input);
+      case "get_intercepted_data":
+        return await handleGetInterceptedData(input);
+      case "stealth_scroll":
+        return await handleStealthScroll(input);
+      case "stealth_close":
+        return await handleStealthClose();
       // Phone calls & SMS (Twilio)
       case "call_owner":
         return await handleCallOwner(input);
