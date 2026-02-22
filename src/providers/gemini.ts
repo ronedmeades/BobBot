@@ -107,7 +107,17 @@ export class GeminiProvider implements LLMProvider {
       }
     }
 
-    const result = await model.generateContent({ contents });
+    // Gemini SDK doesn't natively support AbortSignal — race with signal
+    const contentRequest = model.generateContent({ contents });
+    const result = options.signal
+      ? await Promise.race([
+          contentRequest,
+          new Promise<never>((_, reject) => {
+            if (options.signal!.aborted) reject(new DOMException("Aborted", "AbortError"));
+            options.signal!.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+          }),
+        ])
+      : await contentRequest;
     const response = result.response;
 
     const content: ResponseBlock[] = [];

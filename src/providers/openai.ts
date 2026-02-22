@@ -110,12 +110,15 @@ export class OpenAIProvider implements LLMProvider {
       }
     }
 
-    const response = await this.client.chat.completions.create({
-      model: options.model,
-      max_tokens: options.maxTokens,
-      tools,
-      messages,
-    });
+    const response = await this.client.chat.completions.create(
+      {
+        model: options.model,
+        max_tokens: options.maxTokens,
+        tools,
+        messages,
+      },
+      options.signal ? { signal: options.signal } : undefined,
+    );
 
     const choice = response.choices[0];
     if (!choice) {

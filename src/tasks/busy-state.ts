@@ -34,3 +34,17 @@ export function isPreemptRequested(): boolean {
 export function clearPreempt(): void {
   preemptRequested = false;
 }
+
+// ---------------------------------------------------------------------------
+// Current task tracking (lives here to avoid circular imports)
+// ---------------------------------------------------------------------------
+
+let currentTaskId: string | null = null;
+
+export function setCurrentTaskId(id: string | null): void {
+  currentTaskId = id;
+}
+
+export function getCurrentTaskId(): string | null {
+  return currentTaskId;
+}

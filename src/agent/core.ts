@@ -17,6 +17,7 @@ import {
   getIsBusy,
   setIsBusy,
   getActiveContext,
+  getCurrentTaskId,
   requestPreempt,
   isPreemptRequested,
   clearPreempt,
@@ -27,6 +28,7 @@ import {
   countMatchedCategories,
   getToolsForCategories,
   buildCategorySystemPromptSection,
+  buildLocalSkillsPromptSection,
 } from "./tool-loader.js";
 import { selectPluginKnowledgeForMessage } from "./plugin-loader.js";
 
@@ -54,6 +56,85 @@ export const PERSONALITY_PRESETS: Record<string, string> = {
 
 export function getPersonalityPrompt(preset?: string): string {
   return PERSONALITY_PRESETS[preset ?? "default"] ?? PERSONALITY_PRESETS["default"]!;
+}
+
+// ---------------------------------------------------------------------------
+// Fast-path status check — no LLM call needed
+// ---------------------------------------------------------------------------
+
+const STATUS_CHECK_PATTERNS = [
+  "what are you doing",
+  "what's going on",
+  "what are you working on",
+  "what's happening",
+  "are you busy",
+  "are you working",
+  "current status",
+  "what's your status",
+  "how's it going",
+  "any progress",
+  "how far along",
+  "update me",
+  "sitrep",
+  "status update",
+  "where are you at",
+  "how's the task",
+  "task progress",
+];
+
+/**
+ * Detect if a message is a simple status check that can be answered
+ * without going through the full agent loop.
+ */
+export function isStatusCheck(message: string): boolean {
+  const lower = message.toLowerCase().trim();
+  // Must be a short message — long messages contain real requests
+  if (lower.length > 80) return false;
+  // Exact match on common short forms
+  if (lower === "status" || lower === "status?") return true;
+  return STATUS_CHECK_PATTERNS.some((p) => lower.includes(p));
+}
+
+/**
+ * Build a status response from in-memory task state. No LLM call needed.
+ */
+async function buildStatusResponse(): Promise<string> {
+  const busy = getIsBusy();
+  const context = getActiveContext();
+  const taskId = getCurrentTaskId();
+
+  if (!busy) {
+    return "Nothing going on right now — I'm idle. What do you need?";
+  }
+
+  if (context === "chat") {
+    return "I'm in the middle of handling a chat message. What's up?";
+  }
+
+  if (context === "worker" && taskId) {
+    try {
+      const { getTask } = await import("../tasks/queue.js");
+      const task = await getTask(taskId);
+      if (task) {
+        const progress = `step ${task.stepsCompleted + 1} of ${task.maxSteps}`;
+        const tools = task.toolsUsed.length > 0
+          ? `\nTools used so far: ${[...new Set(task.toolsUsed)].join(", ")}`
+          : "";
+        const findings = task.findings
+          ? `\nFindings so far: ${task.findings.slice(0, 500)}${task.findings.length > 500 ? "..." : ""}`
+          : "";
+        const next = task.nextAction
+          ? `\nNext up: ${task.nextAction.slice(0, 200)}`
+          : "";
+
+        return `Working on a background task: **${task.description}**\n\nProgress: ${progress}${tools}${findings}${next}`;
+      }
+    } catch {
+      // Queue import failed — fall through
+    }
+  }
+
+  return "I'm busy working on something in the background. Give me a moment, or say what you need.";
 }
 
 // ---------------------------------------------------------------------------
@@ -207,8 +288,11 @@ Context memory:
 Available tools let you: fetch URLs, read/write files, list directories, run shell commands, and manage your memory.
 Use them freely to accomplish tasks.
 
-Self-extending skills:
-- If you can't accomplish a task with your current tools, tell the user and offer to create a new skill for it
+Using tools wisely:
+- ALWAYS check your loaded tools first. Your local skills (listed in "Your personal local skills" below) are purpose-built for specific tasks — USE THEM.
+- Before writing new code, creating new skills, or proposing workarounds, verify no existing tool already does what's needed.
+- If a tool returns an error, investigate the error and retry with corrected parameters. Don't abandon working tools.
+- Only if NO existing tool fits, offer to create a new skill:
 - To add a skill:
   1. First read an existing skill for reference (e.g. use read_file on src/skills/backup.ts)
   2. Write a TypeScript file to local/skills/<name>.ts using write_file
@@ -285,6 +369,28 @@ export async function runAgent(
 ): Promise<AgentResponse> {
   const isWorker = source === "worker";
   const isA2A = source === "a2a";
+
+  // Fast-path: status check — no LLM call, no preemption, read-only
+  if (!isWorker && !isA2A && isStatusCheck(userMessage)) {
+    const statusText = await buildStatusResponse();
+
+    await memory.appendHistory(userId, {
+      role: "user",
+      content: userMessage,
+      timestamp: new Date().toISOString(),
+    }, source);
+    await memory.appendHistory(userId, {
+      role: "assistant",
+      content: statusText,
+      timestamp: new Date().toISOString(),
+    }, source);
+
+    const eventSource = source === "telegram" ? "telegram" : "dashboard";
+    events.emitEvent("message:in", { userId, text: userMessage, source: eventSource });
+    events.emitEvent("message:out", { userId, text: statusText });
+
+    return { text: statusText, toolsUsed: [] };
+  }
 
   // If a background task is running, preempt it so direct chat takes priority
   // A2A requests don't preempt — they wait or queue
@@ -429,7 +535,7 @@ async function runAgentInner(
     ? selectPluginKnowledgeForMessage(userMessage)
     : "";
   const systemPrompt = isDirectChat && !options?.systemPrompt
-    ? baseSysPrompt + pluginSection + buildCategorySystemPromptSection()
+    ? baseSysPrompt + pluginSection + buildCategorySystemPromptSection() + buildLocalSkillsPromptSection()
     : baseSysPrompt;
   let activeToolDefs = options?.toolDefs
     ?? (isDirectChat ? selectToolsForMessage(userMessage, toolDefinitions) : toolDefinitions);
@@ -463,12 +569,45 @@ async function runAgentInner(
   }
 
   const toolsUsed: string[] = [];
+  const toolCallSummaries: Array<{ tool: string; success: boolean; snippet: string }> = [];
   let rounds = 0;
 
   // Circuit breaker: detect repeated identical tool errors (stuck detection)
   let lastErrorKey: string | null = null;
   let consecutiveErrorCount = 0;
   const CIRCUIT_BREAKER_LIMIT = 2;
+
+  // Build a pause message with context about what was done
+  function buildPauseMessage(): string {
+    if (toolCallSummaries.length === 0) {
+      return `(Paused) I hadn't started any tool calls yet.\n\nWhat's up? Say "continue" to resume, or tell me what you'd like instead.`;
+    }
+    const summaryLines = toolCallSummaries.map((s) => {
+      const icon = s.success ? "OK" : "FAIL";
+      return `  - ${s.tool}: [${icon}] ${s.snippet}`;
+    });
+    return `(Paused after ${rounds} step${rounds !== 1 ? "s" : ""})\n\n` +
+      `**Working on:** "${userMessage.slice(0, 150)}${userMessage.length > 150 ? "..." : ""}"\n\n` +
+      `**Tools called (${toolCallSummaries.length}):**\n${summaryLines.join("\n")}\n\n` +
+      `Say "continue" to pick up where I left off, or tell me what you'd like instead.`;
+  }
+
+  // Handle pause: save to history + emit events + return
+  async function handlePause(): Promise<AgentResponse> {
+    const pauseMsg = buildPauseMessage();
+    console.log(`[agent] Run paused by user (${source}), ${rounds} rounds, ${toolsUsed.length} tools`);
+
+    await memory.appendHistory(userId, {
+      role: "assistant",
+      content: pauseMsg,
+      timestamp: new Date().toISOString(),
+    }, source);
+
+    events.emitEvent("agent:status", { userId, status: "done", detail: "Paused" });
+    events.emitEvent("message:out", { userId, text: pauseMsg });
+
+    return { text: pauseMsg, toolsUsed };
+  }
 
   // Agentic loop — keep going while the LLM wants to use tools
   while (rounds < maxToolRounds) {
@@ -480,24 +619,9 @@ async function runAgentInner(
       return { text: "(Preempted by direct chat — will continue on next tick)", toolsUsed };
     }
 
-    // Check for user-initiated interrupt (Esc key, /cancel command)
+    // Check for user-initiated pause (Esc key, /cancel command)
     if (signal.aborted) {
-      console.log(`[agent] Run interrupted by user (${source})`);
-
-      const interruptMsg = toolsUsed.length > 0
-        ? `(Interrupted after ${rounds} steps, used: ${[...new Set(toolsUsed)].join(", ")})\n\nI was working on your request. What would you like to do — continue, try a different approach, or something else?`
-        : "(Interrupted) What's up?";
-
-      await memory.appendHistory(userId, {
-        role: "assistant",
-        content: interruptMsg,
-        timestamp: new Date().toISOString(),
-      }, source);
-
-      events.emitEvent("agent:status", { userId, status: "done", detail: "Interrupted" });
-      events.emitEvent("message:out", { userId, text: interruptMsg });
-
-      return { text: interruptMsg, toolsUsed };
+      return handlePause();
     }
 
     rounds++;
@@ -517,8 +641,16 @@ async function runAgentInner(
         system: systemPrompt,
         tools: activeToolDefs,
         messages,
+        signal,
       });
     } catch (err) {
+      // AbortError = user pressed Esc / /cancel — treat as pause
+      // DOMException("AbortError") from fetch, or SDK-specific abort errors
+      const isAbort = signal.aborted || (err instanceof DOMException && err.name === "AbortError")
+        || (err instanceof Error && err.name === "AbortError");
+      if (isAbort) {
+        return handlePause();
+      }
       // If secondary failed, fall back to primary and notify
       if (resolved.isSecondary) {
         const reason = err instanceof Error ? err.message : String(err);
@@ -533,10 +665,16 @@ async function runAgentInner(
           system: systemPrompt,
           tools: activeToolDefs,
           messages,
+          signal,
         });
       } else {
         throw err;
       }
+    }
+
+    // Check for pause after LLM response returns (signal may have been set during the API call)
+    if (signal.aborted) {
+      return handlePause();
     }
 
     // Collect all text blocks from the response
@@ -627,6 +765,18 @@ async function runAgentInner(
 
     const toolResults: ToolResultContent[] = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
+        // Check for pause before each tool execution
+        if (signal.aborted) {
+          toolsUsed.push(toolUse.name);
+          toolCallSummaries.push({ tool: toolUse.name, success: false, snippet: "(skipped — paused)" });
+          return {
+            type: "tool_result" as const,
+            tool_use_id: toolUse.id,
+            content: "Skipped — user paused the run.",
+            is_error: true,
+          };
+        }
+
         toolsUsed.push(toolUse.name);
         console.log(`  [tool] ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 100)})`);
 
@@ -639,6 +789,13 @@ async function runAgentInner(
           toolContext
         );
         const durationMs = Date.now() - startMs;
+
+        // Track for pause message
+        toolCallSummaries.push({
+          tool: toolUse.name,
+          success: result.success,
+          snippet: result.output.slice(0, 120),
+        });
 
         events.emitEvent("tool:result", {
           tool: toolUse.name,
@@ -669,6 +826,11 @@ async function runAgentInner(
         };
       })
     );
+
+    // Check for pause after tool execution
+    if (signal.aborted) {
+      return handlePause();
+    }
 
     // Circuit breaker: detect repeated identical tool errors
     const failedResults = toolResults.filter(r => r.is_error);

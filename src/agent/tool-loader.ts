@@ -396,6 +396,23 @@ ${lines.join("\n")}`;
 }
 
 /**
+ * Build a system prompt section listing local skills (always available).
+ * Returns empty string if no local skills are loaded.
+ */
+export function buildLocalSkillsPromptSection(): string {
+  const localDefs = getLocalToolDefinitions();
+  if (localDefs.length === 0) return "";
+
+  const lines = localDefs.map((d) => {
+    const desc = d.description?.split(".")[0]?.slice(0, 120) ?? "No description";
+    return `- ${d.name}: ${desc}`;
+  });
+
+  return `\n\nYour personal local skills (always loaded — no need for load_tools):
+${lines.join("\n")}`;
+}
+
+/**
  * Count how many tool categories match a message (keyword matching).
  * Used by cost-mode routing to assess task complexity.
  */

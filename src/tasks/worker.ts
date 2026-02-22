@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import { runAgent } from "../agent/core.js";
 import { memory } from "../agent/memory.js";
 import { events } from "../dashboard/events.js";
-import { getIsBusy, setIsBusy } from "./busy-state.js";
+import { getIsBusy, setIsBusy, setCurrentTaskId } from "./busy-state.js";
 import { getNextTask, updateTask, cleanupOldTasks } from "./queue.js";
 import {
   escalationTick,
@@ -16,7 +16,6 @@ type NotifyFn = (chatId: number, message: string) => Promise<void>;
 
 let workerTimer: ReturnType<typeof setInterval> | null = null;
 let notifyUser: NotifyFn | null = null;
-let currentTaskId: string | null = null;
 let stepsThisHour = 0;
 let hourResetTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -26,10 +25,6 @@ const MAX_STEPS_PER_HOUR = Number(process.env.WORKER_MAX_STEPS_PER_HOUR) || 20;
 export function setWorkerNotifier(fn: NotifyFn): void {
   notifyUser = fn;
   setEscalationNotifier(fn);
-}
-
-export function getCurrentTaskId(): string | null {
-  return currentTaskId;
 }
 
 function buildInitialPrompt(task: Task): string {
@@ -242,7 +237,7 @@ async function workerTick(): Promise<void> {
   if (!task) return;
 
   setIsBusy(true, "worker");
-  currentTaskId = task.id;
+  setCurrentTaskId(task.id);
 
   try {
     // Mark as active if pending
@@ -291,7 +286,7 @@ async function workerTick(): Promise<void> {
       await updateTask(task.id, { retryCount: newRetry });
     }
   } finally {
-    currentTaskId = null;
+    setCurrentTaskId(null);
     setIsBusy(false);
   }
 }

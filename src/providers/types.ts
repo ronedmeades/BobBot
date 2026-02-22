@@ -99,6 +99,7 @@ export interface ChatOptions {
   system: string;
   tools: ToolDefinition[];
   messages: Message[];
+  signal?: AbortSignal;
 }
 
 export interface VisionOptions {

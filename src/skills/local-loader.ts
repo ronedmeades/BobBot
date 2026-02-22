@@ -75,7 +75,14 @@ export async function loadLocalSkills(): Promise<void> {
       const mod = (await import(fileUrl)) as LocalSkillModule;
 
       if (mod.toolDefinitions && Array.isArray(mod.toolDefinitions)) {
-        localDefinitions.push(...mod.toolDefinitions);
+        for (const def of mod.toolDefinitions) {
+          const existingIdx = localDefinitions.findIndex((d) => d.name === def.name);
+          if (existingIdx !== -1) {
+            console.warn(`  [local] WARNING: Tool "${def.name}" already defined — replacing with version from ${skillName}`);
+            localDefinitions.splice(existingIdx, 1);
+          }
+          localDefinitions.push(def);
+        }
       }
 
       if (mod.toolHandlers && typeof mod.toolHandlers === "object") {

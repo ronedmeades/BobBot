@@ -7,7 +7,7 @@ import { events, type BobEvent } from "./events.js";
 import { runAgent, cancelAgentRun } from "../agent/core.js";
 import { getTasksForUser } from "../tasks/runner.js";
 import { getTask, createTask, cancelTask, getAllTasks } from "../tasks/queue.js";
-import { getCurrentTaskId } from "../tasks/worker.js";
+import { getCurrentTaskId } from "../tasks/busy-state.js";
 import { getIsBusy, getActiveContext } from "../tasks/busy-state.js";
 import { memory } from "../agent/memory.js";
 import { startBot, stopBot, isBotRunning } from "../bot/telegram.js";

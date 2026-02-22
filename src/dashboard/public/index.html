@@ -771,18 +771,25 @@
     return div;
   }
 
-  // --- Interrupt support (Esc key) ---
+  // --- Pause support (Esc key) ---
   const DEFAULT_PLACEHOLDER = 'Message Bob... (Enter to send, Shift+Enter for new line)';
-  const BUSY_PLACEHOLDER = 'Bob is working... (hit Esc to interrupt)';
+  const BUSY_PLACEHOLDER = 'Bob is working... (hit Esc to pause)';
+  const PAUSED_PLACEHOLDER = 'Bob is paused. Ask a question or say "continue"...';
   let cancelInFlight = false;
 
-  async function cancelCurrentRun() {
+  async function pauseCurrentRun() {
     if (cancelInFlight || !isProcessing) return;
     cancelInFlight = true;
+
+    // Immediate visual feedback — don't wait for server
+    const thinkingEl = document.querySelector('.msg.thinking');
+    if (thinkingEl) thinkingEl.textContent = 'Pausing...';
+    document.getElementById('chat-input').placeholder = PAUSED_PLACEHOLDER;
+
     try {
       await authFetch('/api/chat/cancel', { method: 'POST' });
     } catch (e) {
-      console.error('Cancel failed:', e);
+      console.error('Pause failed:', e);
     }
     cancelInFlight = false;
   }
@@ -790,7 +797,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isProcessing) {
       e.preventDefault();
-      cancelCurrentRun();
+      pauseCurrentRun();
     }
   });
 

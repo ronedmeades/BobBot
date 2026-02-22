@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS, isSimpleTask, resolveProvider } from "../../src/agent/core.js";
+import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS, isSimpleTask, isStatusCheck, resolveProvider } from "../../src/agent/core.js";
 
 describe("detectUnusedActions", () => {
   describe("returns null for clean responses", () => {
@@ -248,5 +248,59 @@ describe("resolveProvider", () => {
     // This will be primary if no secondary is configured in env (which is the test case)
     expect(result.provider).toBeDefined();
     expect(result.llmConfig).toBeDefined();
+  });
+});
+
+describe("isStatusCheck", () => {
+  it("detects 'what are you doing'", () => {
+    expect(isStatusCheck("what are you doing")).toBe(true);
+  });
+
+  it("detects 'what are you doing?' with punctuation", () => {
+    expect(isStatusCheck("what are you doing?")).toBe(true);
+  });
+
+  it("detects 'status' exactly", () => {
+    expect(isStatusCheck("status")).toBe(true);
+    expect(isStatusCheck("status?")).toBe(true);
+  });
+
+  it("detects 'any progress'", () => {
+    expect(isStatusCheck("any progress?")).toBe(true);
+  });
+
+  it("detects 'sitrep'", () => {
+    expect(isStatusCheck("sitrep")).toBe(true);
+  });
+
+  it("detects 'how far along'", () => {
+    expect(isStatusCheck("how far along are you")).toBe(true);
+  });
+
+  it("is case-insensitive", () => {
+    expect(isStatusCheck("What Are You Doing?")).toBe(true);
+    expect(isStatusCheck("STATUS")).toBe(true);
+  });
+
+  it("rejects long messages that happen to contain status patterns", () => {
+    expect(isStatusCheck("I need you to check the status of the eBay listing and update the price to $25")).toBe(false);
+  });
+
+  it("rejects unrelated short messages", () => {
+    expect(isStatusCheck("hello")).toBe(false);
+    expect(isStatusCheck("what's the weather")).toBe(false);
+    expect(isStatusCheck("help me with this")).toBe(false);
+  });
+
+  it("rejects empty string", () => {
+    expect(isStatusCheck("")).toBe(false);
+  });
+
+  it("detects 'update me'", () => {
+    expect(isStatusCheck("update me")).toBe(true);
+  });
+
+  it("detects 'where are you at'", () => {
+    expect(isStatusCheck("where are you at with that")).toBe(true);
   });
 });
