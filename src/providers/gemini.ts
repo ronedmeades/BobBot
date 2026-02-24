@@ -32,7 +32,7 @@ export class GeminiProvider implements LLMProvider {
       (t) => ({
         name: t.name,
         description: t.description,
-        parameters: t.input_schema as unknown as FunctionDeclaration["parameters"],
+        parameters: stripUnsupportedSchema(t.input_schema) as FunctionDeclaration["parameters"],
       })
     );
 
@@ -190,6 +190,20 @@ export class GeminiProvider implements LLMProvider {
     const truncated = candidate?.finishReason === "MAX_TOKENS";
     return { text, truncated };
   }
+}
+
+/**
+ * Recursively strip JSON Schema properties that Gemini's API doesn't support.
+ */
+function stripUnsupportedSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(stripUnsupportedSchema);
+  if (schema === null || typeof schema !== "object") return schema;
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(schema as Record<string, unknown>)) {
+    if (key === "additionalProperties") continue;
+    result[key] = stripUnsupportedSchema(value);
+  }
+  return result;
 }
 
 /**
