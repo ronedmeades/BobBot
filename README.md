@@ -357,7 +357,7 @@ Add to your `.env` file:
 OPENAI_API_KEY=sk-xxxxx
 ```
 
-> **Already using OpenAI as your LLM provider?** Bob reuses `LLM_API_KEY` automatically — no extra key needed.
+> **Already using OpenAI as your primary LLM provider?** Bob reuses `PRIMARY_LLM_API_KEY` automatically — no extra key needed.
 
 Optionally customize Bob's voice:
 

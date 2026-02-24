@@ -7,27 +7,27 @@ export type CostMode = "primary" | "balanced";
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: "claude-opus-4-6",
   openai: "gpt-4o-mini",
-  gemini: "gemini-2.0-flash",
+  gemini: "gemini-3.1-pro-preview",
 };
 
-const provider = (process.env.LLM_PROVIDER ?? "anthropic").toLowerCase();
+const provider = (process.env.PRIMARY_LLM_PROVIDER ?? "anthropic").toLowerCase();
 
 export const config = {
   llm: {
     provider,
-    apiKey: process.env.LLM_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? "",
-    model: process.env.LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6",
+    apiKey: process.env.PRIMARY_LLM_API_KEY ?? "",
+    model: process.env.PRIMARY_LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6",
   } satisfies LLMConfig,
   /** Secondary LLM for balanced mode. Getter reads process.env live so set_env_var hot-reload works. */
   get secondaryLlm(): LLMConfig | null {
-    const p = process.env.SECONDARY_PROVIDER?.toLowerCase();
-    const k = process.env.SECONDARY_API_KEY;
+    const p = process.env.SECONDARY_LLM_PROVIDER?.toLowerCase();
+    const k = process.env.SECONDARY_LLM_API_KEY;
     if (!p || !k) return null;
     return {
       provider: p,
       apiKey: k,
-      model: process.env.SECONDARY_MODEL ?? DEFAULT_MODELS[p] ?? "",
-      baseUrl: process.env.SECONDARY_BASE_URL || undefined,
+      model: process.env.SECONDARY_LLM_MODEL ?? DEFAULT_MODELS[p] ?? "",
+      baseUrl: process.env.SECONDARY_LLM_BASE_URL || undefined,
     };
   },
   costMode: {
@@ -71,12 +71,12 @@ export const config = {
 export function validateConfig(): void {
   if (!config.llm.apiKey) {
     const hints: Record<string, string> = {
-      anthropic: "Set ANTHROPIC_API_KEY (or LLM_API_KEY) in .env — get one at console.anthropic.com",
-      openai: "Set LLM_API_KEY in .env — get one at platform.openai.com/api-keys",
-      gemini: "Set LLM_API_KEY in .env — get one at aistudio.google.com/apikey",
+      anthropic: "Set PRIMARY_LLM_API_KEY in .env — get one at console.anthropic.com",
+      openai: "Set PRIMARY_LLM_API_KEY in .env — get one at platform.openai.com/api-keys",
+      gemini: "Set PRIMARY_LLM_API_KEY in .env — get one at aistudio.google.com/apikey",
     };
     throw new Error(
-      `No API key for provider "${config.llm.provider}". ${hints[config.llm.provider] ?? "Set LLM_API_KEY in .env"}`
+      `No API key for provider "${config.llm.provider}". ${hints[config.llm.provider] ?? "Set PRIMARY_LLM_API_KEY in .env"}`
     );
   }
   if (!config.telegram.botToken) {
@@ -88,8 +88,8 @@ export function validateConfig(): void {
     console.log("Set BOB_API_TOKEN in .env to secure the dashboard.\n");
   }
   if (config.costMode.default === "balanced" && !config.secondaryLlm) {
-    console.log("WARNING: DEFAULT_COST_MODE=balanced but no SECONDARY_PROVIDER configured.");
-    console.log("Balanced mode needs SECONDARY_PROVIDER + SECONDARY_API_KEY. Falling back to primary mode.\n");
+    console.log("WARNING: DEFAULT_COST_MODE=balanced but no SECONDARY_LLM_PROVIDER configured.");
+    console.log("Balanced mode needs SECONDARY_LLM_PROVIDER + SECONDARY_LLM_API_KEY. Falling back to primary mode.\n");
   }
   if (config.secondaryLlm) {
     console.log(`Cost mode: secondary provider available (${config.secondaryLlm.provider}/${config.secondaryLlm.model})`);

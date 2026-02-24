@@ -3,7 +3,7 @@ import { config, validateConfig } from "../src/config.js";
 
 describe("config", () => {
   it("has default model for anthropic", () => {
-    // Default provider is anthropic if LLM_PROVIDER not set
+    // Default provider is anthropic if PRIMARY_LLM_PROVIDER not set
     expect(config.llm.model).toBeTruthy();
   });
 
@@ -44,8 +44,8 @@ describe("validateConfig", () => {
 });
 
 describe("cost mode config", () => {
-  it("secondaryLlm is null when SECONDARY_PROVIDER is not set", () => {
-    if (!process.env.SECONDARY_PROVIDER) {
+  it("secondaryLlm is null when SECONDARY_LLM_PROVIDER is not set", () => {
+    if (!process.env.SECONDARY_LLM_PROVIDER) {
       expect(config.secondaryLlm).toBeNull();
     }
   });
@@ -58,13 +58,13 @@ describe("cost mode config", () => {
 
   it("secondaryLlm is a getter that reads process.env live", () => {
     // Save original values
-    const origProvider = process.env.SECONDARY_PROVIDER;
-    const origKey = process.env.SECONDARY_API_KEY;
+    const origProvider = process.env.SECONDARY_LLM_PROVIDER;
+    const origKey = process.env.SECONDARY_LLM_API_KEY;
 
     try {
       // Set env vars
-      process.env.SECONDARY_PROVIDER = "gemini";
-      process.env.SECONDARY_API_KEY = "test-key";
+      process.env.SECONDARY_LLM_PROVIDER = "gemini";
+      process.env.SECONDARY_LLM_API_KEY = "test-key";
 
       const result = config.secondaryLlm;
       expect(result).not.toBeNull();
@@ -72,15 +72,15 @@ describe("cost mode config", () => {
       expect(result!.apiKey).toBe("test-key");
 
       // Clear and verify it returns null
-      delete process.env.SECONDARY_PROVIDER;
-      delete process.env.SECONDARY_API_KEY;
+      delete process.env.SECONDARY_LLM_PROVIDER;
+      delete process.env.SECONDARY_LLM_API_KEY;
       expect(config.secondaryLlm).toBeNull();
     } finally {
       // Restore original values
-      if (origProvider) process.env.SECONDARY_PROVIDER = origProvider;
-      else delete process.env.SECONDARY_PROVIDER;
-      if (origKey) process.env.SECONDARY_API_KEY = origKey;
-      else delete process.env.SECONDARY_API_KEY;
+      if (origProvider) process.env.SECONDARY_LLM_PROVIDER = origProvider;
+      else delete process.env.SECONDARY_LLM_PROVIDER;
+      if (origKey) process.env.SECONDARY_LLM_API_KEY = origKey;
+      else delete process.env.SECONDARY_LLM_API_KEY;
     }
   });
 });

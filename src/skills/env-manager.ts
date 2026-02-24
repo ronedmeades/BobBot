@@ -12,13 +12,13 @@ interface ToolResult {
 // ---------------------------------------------------------------------------
 
 const ALLOWED_KEYS = new Set([
-  // Core
-  "LLM_PROVIDER",
-  "LLM_API_KEY",
-  "LLM_MODEL",
+  // Primary LLM
+  "PRIMARY_LLM_PROVIDER",
+  "PRIMARY_LLM_API_KEY",
+  "PRIMARY_LLM_MODEL",
+  // Owner
   "OWNER_NAME",
   "OWNER_TIMEZONE",
-  "ANTHROPIC_API_KEY",
 
   // Telegram
   "TELEGRAM_BOT_TOKEN",
@@ -61,11 +61,11 @@ const ALLOWED_KEYS = new Set([
   "TWILIO_PHONE_NUMBER",
   "OWNER_PHONE_NUMBER",
 
-  // Cost Mode (secondary model)
-  "SECONDARY_PROVIDER",
-  "SECONDARY_API_KEY",
-  "SECONDARY_MODEL",
-  "SECONDARY_BASE_URL",
+  // Secondary LLM (cost mode)
+  "SECONDARY_LLM_PROVIDER",
+  "SECONDARY_LLM_API_KEY",
+  "SECONDARY_LLM_MODEL",
+  "SECONDARY_LLM_BASE_URL",
   "DEFAULT_COST_MODE",
 ]);
 
@@ -214,7 +214,7 @@ export async function handleListEnvKeys(
   const category = (input.category as string) ?? "all";
 
   const categories: Record<string, { keys: string[]; hint?: string }> = {
-    core: { keys: ["LLM_PROVIDER", "LLM_API_KEY", "LLM_MODEL", "OWNER_NAME", "OWNER_TIMEZONE", "ANTHROPIC_API_KEY"] },
+    core: { keys: ["PRIMARY_LLM_PROVIDER", "PRIMARY_LLM_API_KEY", "PRIMARY_LLM_MODEL", "OWNER_NAME", "OWNER_TIMEZONE"] },
     telegram: { keys: ["TELEGRAM_BOT_TOKEN", "OWNER_USER_ID"] },
     dashboard: { keys: ["BOB_API_TOKEN", "DASHBOARD_PORT"] },
     backup: { keys: ["BACKUP_PATH", "BACKUP_INTERVAL_DAYS"] },
@@ -233,8 +233,8 @@ export async function handleListEnvKeys(
     etsy: { keys: ["ETSY_API_KEY", "ETSY_SHARED_SECRET", "ETSY_REFRESH_TOKEN", "ETSY_SHOP_ID"] },
     twilio: { keys: ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_PHONE_NUMBER", "OWNER_PHONE_NUMBER"] },
     cost_mode: {
-      keys: ["SECONDARY_PROVIDER", "SECONDARY_API_KEY", "SECONDARY_MODEL", "SECONDARY_BASE_URL", "DEFAULT_COST_MODE"],
-      hint: "Secondary model for cost optimization. Gemini Flash (30x cheaper), or Ollama for free local models (SECONDARY_BASE_URL=http://localhost:11434/v1).",
+      keys: ["SECONDARY_LLM_PROVIDER", "SECONDARY_LLM_API_KEY", "SECONDARY_LLM_MODEL", "SECONDARY_LLM_BASE_URL", "DEFAULT_COST_MODE"],
+      hint: "Secondary model for cost optimization. Gemini Flash (30x cheaper), or Ollama for free local models (SECONDARY_LLM_BASE_URL=http://localhost:11434/v1).",
     },
   };
 

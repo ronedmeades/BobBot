@@ -164,9 +164,9 @@ async function main(): Promise<void> {
   // Write .env
   const envContent = [
     "# Bob configuration — created by pnpm setup",
-    `LLM_PROVIDER=${provider.name}`,
-    `LLM_API_KEY=${apiKey}`,
-    `LLM_MODEL=${provider.model}`,
+    `PRIMARY_LLM_PROVIDER=${provider.name}`,
+    `PRIMARY_LLM_API_KEY=${apiKey}`,
+    `PRIMARY_LLM_MODEL=${provider.model}`,
     "",
     `OWNER_NAME=${name}`,
     "",

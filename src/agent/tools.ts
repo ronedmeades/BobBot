@@ -247,7 +247,7 @@ const builtinTools: ToolDefinition[] = [
       "Switch Bob's cost optimization mode. " +
       "'primary' uses the primary model for everything (max quality). " +
       "'balanced' routes simple background tasks to a cheaper secondary model while keeping the primary for direct chat and complex tasks. " +
-      "Requires SECONDARY_PROVIDER to be configured for balanced mode.",
+      "Requires SECONDARY_LLM_PROVIDER to be configured for balanced mode.",
     input_schema: {
       type: "object" as const,
       properties: {

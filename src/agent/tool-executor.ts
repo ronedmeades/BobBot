@@ -325,14 +325,14 @@ export async function executeTool(
                 "To set it up:\n" +
                 "1. Get a free API key at https://aistudio.google.com/apikey\n" +
                 "2. Then I can configure it for you — just paste the key and I'll use set_env_var to set:\n" +
-                "   SECONDARY_PROVIDER=gemini\n" +
-                "   SECONDARY_API_KEY=<your key>\n" +
-                "   SECONDARY_MODEL=gemini-2.0-flash\n\n" +
+                "   SECONDARY_LLM_PROVIDER=gemini\n" +
+                "   SECONDARY_LLM_API_KEY=<your key>\n" +
+                "   SECONDARY_LLM_MODEL=gemini-2.0-flash\n\n" +
                 "Or for a free local model via Ollama:\n" +
-                "   SECONDARY_PROVIDER=openai\n" +
-                "   SECONDARY_API_KEY=ollama\n" +
-                "   SECONDARY_MODEL=qwen3:8b\n" +
-                "   SECONDARY_BASE_URL=http://localhost:11434/v1",
+                "   SECONDARY_LLM_PROVIDER=openai\n" +
+                "   SECONDARY_LLM_API_KEY=ollama\n" +
+                "   SECONDARY_LLM_MODEL=qwen3:8b\n" +
+                "   SECONDARY_LLM_BASE_URL=http://localhost:11434/v1",
             };
           }
         }

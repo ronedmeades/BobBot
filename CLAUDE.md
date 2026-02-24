@@ -41,7 +41,9 @@ pnpm dev                # Starts bot + dashboard with hot reload
 ### Environment Variables (create .env from .env.example)
 
 ```
-ANTHROPIC_API_KEY=sk-ant-xxxxx      # From console.anthropic.com
+PRIMARY_LLM_PROVIDER=anthropic       # anthropic, openai, or gemini
+PRIMARY_LLM_API_KEY=sk-ant-xxxxx    # From console.anthropic.com
+PRIMARY_LLM_MODEL=                  # Optional (defaults per provider)
 TELEGRAM_BOT_TOKEN=123456:ABC-DEF   # From @BotFather on Telegram
 OWNER_USER_ID=your-telegram-user-id # Your Telegram user ID
 OWNER_NAME=YourName                 # How Bob addresses you
@@ -49,8 +51,8 @@ OWNER_NOTES=Optional context        # Anything Bob should know about you
 DASHBOARD_PORT=3000                 # Optional, defaults to 3000
 HA_URL=http://192.168.1.100:8123    # Home Assistant URL (optional)
 HA_TOKEN=your_long_lived_token      # HA long-lived access token (optional)
-SECONDARY_PROVIDER=gemini           # Secondary model provider (optional)
-SECONDARY_API_KEY=                  # API key for secondary provider (optional)
+SECONDARY_LLM_PROVIDER=gemini       # Secondary model provider (optional)
+SECONDARY_LLM_API_KEY=              # API key for secondary provider (optional)
 ```
 
 To create your own Telegram bot:

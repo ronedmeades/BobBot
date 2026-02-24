@@ -222,7 +222,7 @@ export function createBot(): Bot {
         clearInterval(typingInterval);
         await ctx.reply(
           "I can't process voice messages yet — I need an OpenAI API key for transcription. " +
-          "Set OPENAI_API_KEY in .env (or set LLM_PROVIDER=openai to reuse LLM_API_KEY)."
+          "Set OPENAI_API_KEY in .env (or set PRIMARY_LLM_PROVIDER=openai to reuse PRIMARY_LLM_API_KEY)."
         );
         return;
       }
