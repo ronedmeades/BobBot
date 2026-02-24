@@ -136,7 +136,7 @@ bob/
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
 ├── vitest.config.ts       # Test runner config (ESM, node environment)
-├── tests/                 # Test suite (207 tests across 9 files)
+├── tests/                 # Test suite (221 tests across 10 files)
 │   ├── config.test.ts             # Config defaults, validateConfig
 │   ├── agent/
 │   │   ├── core.test.ts           # Hallucination guard (detectUnusedActions)
@@ -335,7 +335,7 @@ Safety checks at each tool-round boundary:
 | Tool | What It Does |
 |------|-------------|
 | `fetch_url` | HTTP requests (GET/POST/PUT/DELETE) with custom headers/body |
-| `read_file` | Read local files (with credential blocklist protection) |
+| `read_file` | Read local files (credential blocklist, large file preview >100KB, offset/limit chunking, 50K output cap) |
 | `write_file` | Write files (creates dirs, credential paths blocked, overwrite protection — must use `append=true` or `overwrite=true` for existing files) |
 | `list_directory` | List contents of a directory |
 | `run_command` | Execute shell commands (with timeout) |
@@ -878,7 +878,7 @@ pnpm test             # Run tests (vitest)
 
 ### Test Suite
 
-207 tests across 9 files covering pure-logic core functions. Run with `pnpm test`.
+221 tests across 10 files covering pure-logic core functions. Run with `pnpm test`.
 
 | Area | File | Tests | What it covers |
 |------|------|-------|----------------|
@@ -891,6 +891,7 @@ pnpm test             # Run tests (vitest)
 | Tasks | `tests/tasks/escalation.test.ts` | 9 | Channel filtering, dedup, interaction tracking |
 | Config | `tests/config.test.ts` | 10 | Config defaults, A2A settings, validateConfig, cost mode config + hot-reload |
 | A2A | `tests/a2a/public-skills.test.ts` | 18 | Three-tier security (SAFE/DATA/BLOCKED), trust tiers, MCP blocking |
+| Agent | `tests/agent/read-file.test.ts` | 14 | Smart read_file: size detection, large file preview, chunked reading, output cap, signal abort |
 
 Tests focus on exported pure functions — no network calls, no heavy mocking (except module-level mocks for tool-loader and A2A tests). Uses `vi.useFakeTimers()` for deterministic time tests.
 
@@ -990,6 +991,7 @@ The LLM would sometimes call a tool with invalid parameters (e.g. `write_file` w
    - **Skill-level truncation** — 5 skills with direct LLM calls (vision, summarizer, translation, social-media) check `stopReason` or `truncated` on every call site (9 total) and append continuation indicator when truncated.
    - **Input validation** — `write_file` rejects `content: null/undefined` with a clear error hinting at token limits.
    - **System prompt** — Teaches iterative generation for large files.
+5. **Smart read_file** — Files >100KB return a preview (first 50 + last 20 lines with metadata) instead of dumping into context. `offset`/`limit` parameters for chunked reading. 50K char output cap. AbortSignal propagated to `ToolContext` so `read_file` and `fetch_url` check for cancellation before I/O.
 
 **Design rationale for limit=2:** Unlike traditional circuit breakers (designed for transient network failures where retries make sense), this is stuck detection. The LLM sees the full error in context and has complete agency to self-correct. If it produces the exact same broken call after seeing the error once, it's fundamentally confused — more retries just burn tokens.
 
