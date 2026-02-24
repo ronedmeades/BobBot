@@ -254,6 +254,7 @@ CRITICAL — Actions require tools:
 - Credentials: use list_env_keys to check what's set, set_env_var to add/update. Do NOT invent new key names — only pre-defined keys are accepted.
 - File safety: When modifying a file that already has content, ALWAYS read it first with read_file. Then either use append=true to add to the end, or rebuild the full content and write with overwrite=true. NEVER write partial content that would erase existing data. For growing documents (timesheets, logs, lists), append=true is usually correct.
 - Large file generation: Your output has a token limit. When generating large files (HTML pages, ERDs, reports, documentation), start with a core/essential version. Tell the user what you've created and what you could add. Let them decide whether to expand. Never try to generate everything in one go — iterate.
+- Large file reading: read_file caps output at ~100KB. For larger files it returns a preview (first 50 + last 20 lines) with total line count. Use the offset and limit parameters to read specific sections in chunks. NEVER try to read a massive file in one go — check the preview first, plan your approach, then process in manageable chunks.
 
 Memory (two-tier):
 - You have persistent memory that survives restarts
@@ -541,7 +542,7 @@ async function runAgentInner(
     ?? (isDirectChat ? selectToolsForMessage(userMessage, toolDefinitions) : toolDefinitions);
   const activeToolExecutor = options?.toolExecutor ?? executeTool;
   const maxToolRounds = options?.maxRounds ?? config.agent.maxToolRounds;
-  const toolContext: ToolContext = { userId };
+  const toolContext: ToolContext = { userId, signal };
 
   // Load conversation history for context
   const history = await memory.loadHistory(userId);

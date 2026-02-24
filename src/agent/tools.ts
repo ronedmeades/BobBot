@@ -70,13 +70,24 @@ const builtinTools: ToolDefinition[] = [
   },
   {
     name: "read_file",
-    description: "Read the contents of a local file.",
+    description:
+      "Read the contents of a local file. " +
+      "For large files (>100KB), returns a preview (first 50 + last 20 lines) with file metadata. " +
+      "Use offset and limit to read specific line ranges of large files — process in chunks, never all at once.",
     input_schema: {
       type: "object" as const,
       properties: {
         path: {
           type: "string",
           description: "Absolute or relative path to the file",
+        },
+        offset: {
+          type: "number",
+          description: "Starting line number (1-based). Use for chunked reading of large files.",
+        },
+        limit: {
+          type: "number",
+          description: "Number of lines to read from offset (default: 200). Use for chunked reading of large files.",
         },
       },
       required: ["path"],

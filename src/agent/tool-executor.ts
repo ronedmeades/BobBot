@@ -247,6 +247,7 @@ interface ToolResult {
 
 export interface ToolContext {
   userId: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -278,9 +279,9 @@ export async function executeTool(
   try {
     switch (name) {
       case "fetch_url":
-        return await handleFetchUrl(input);
+        return await handleFetchUrl(input, context);
       case "read_file":
-        return await handleReadFile(input);
+        return await handleReadFile(input, context);
       case "write_file":
         return await handleWriteFile(input);
       case "list_directory":
@@ -759,7 +760,10 @@ export async function executeTool(
   }
 }
 
-async function handleFetchUrl(input: Record<string, unknown>): Promise<ToolResult> {
+async function handleFetchUrl(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
   const url = input.url as string;
   const method = (input.method as string) ?? "GET";
   const headers = (input.headers as Record<string, string>) ?? {};
@@ -769,6 +773,7 @@ async function handleFetchUrl(input: Record<string, unknown>): Promise<ToolResul
     method,
     headers,
     body: body ?? undefined,
+    signal: context?.signal,
   });
 
   const text = await response.text();
@@ -797,13 +802,131 @@ function isBlockedPath(filePath: string): boolean {
   return BLOCKED_PATHS.some((pattern) => pattern.test(normalized));
 }
 
-async function handleReadFile(input: Record<string, unknown>): Promise<ToolResult> {
+/** Maximum file size (bytes) to read in full. Above this, return preview + metadata. */
+const READ_FILE_SIZE_LIMIT = 100_000; // ~100KB
+/** Maximum chars for output string to prevent token overload. */
+const READ_FILE_OUTPUT_CAP = 50_000;
+
+async function handleReadFile(
+  input: Record<string, unknown>,
+  context?: ToolContext
+): Promise<ToolResult> {
   const path = resolve(input.path as string);
   if (isBlockedPath(path)) {
     return { success: false, output: "Access denied — this file contains credentials and cannot be read." };
   }
+
+  if (context?.signal?.aborted) {
+    return { success: false, output: "Cancelled by user." };
+  }
+
+  let fileSize: number;
+  try {
+    const fileStat = await stat(path);
+    fileSize = fileStat.size;
+  } catch {
+    return { success: false, output: `File not found: ${path}` };
+  }
+
+  const offset = input.offset as number | undefined;
+  const limit = input.limit as number | undefined;
+
+  // Chunked read: offset/limit provided
+  if (offset !== undefined || limit !== undefined) {
+    return readFileChunked(path, fileSize, offset ?? 1, limit ?? 200, context);
+  }
+
+  // Large file: return preview with metadata
+  if (fileSize > READ_FILE_SIZE_LIMIT) {
+    return readFileLargePreview(path, fileSize, context);
+  }
+
+  // Normal: read full file, cap output
+  if (context?.signal?.aborted) {
+    return { success: false, output: "Cancelled by user." };
+  }
+
   const content = await readFile(path, "utf-8");
+  if (content.length > READ_FILE_OUTPUT_CAP) {
+    const lineCount = content.split("\n").length;
+    return {
+      success: true,
+      output: content.slice(0, READ_FILE_OUTPUT_CAP) +
+        `\n\n...[truncated — showing first ${READ_FILE_OUTPUT_CAP} of ${content.length} chars, ${lineCount} total lines. Use offset/limit to read specific sections.]`,
+    };
+  }
+
   return { success: true, output: content };
+}
+
+async function readFileChunked(
+  filePath: string,
+  fileSize: number,
+  offset: number,
+  limit: number,
+  context?: ToolContext
+): Promise<ToolResult> {
+  if (context?.signal?.aborted) {
+    return { success: false, output: "Cancelled by user." };
+  }
+
+  const content = await readFile(filePath, "utf-8");
+  const lines = content.split("\n");
+  const totalLines = lines.length;
+
+  const startLine = Math.max(1, offset);
+  const endLine = Math.min(totalLines, startLine + limit - 1);
+  const slice = lines.slice(startLine - 1, endLine);
+  const numbered = slice.map((line, i) => `${startLine + i}: ${line}`);
+  const output = numbered.join("\n");
+
+  const header = `[Lines ${startLine}-${endLine} of ${totalLines} (${fileSize} bytes)]`;
+
+  if (output.length > READ_FILE_OUTPUT_CAP) {
+    return {
+      success: true,
+      output: header + "\n" + output.slice(0, READ_FILE_OUTPUT_CAP) + "\n...[output truncated — use a smaller limit]",
+    };
+  }
+
+  return { success: true, output: header + "\n" + output };
+}
+
+async function readFileLargePreview(
+  filePath: string,
+  fileSize: number,
+  context?: ToolContext
+): Promise<ToolResult> {
+  if (context?.signal?.aborted) {
+    return { success: false, output: "Cancelled by user." };
+  }
+
+  const content = await readFile(filePath, "utf-8");
+  const lines = content.split("\n");
+  const totalLines = lines.length;
+
+  const headCount = Math.min(50, totalLines);
+  const tailCount = Math.min(20, Math.max(0, totalLines - headCount));
+  const head = lines.slice(0, headCount).map((l, i) => `${i + 1}: ${l}`).join("\n");
+  const tail = tailCount > 0
+    ? lines.slice(-tailCount).map((l, i) => `${totalLines - tailCount + i + 1}: ${l}`).join("\n")
+    : "";
+
+  const omitted = totalLines - headCount - tailCount;
+
+  return {
+    success: true,
+    output: [
+      `[LARGE FILE — ${fileSize} bytes, ${totalLines} lines]`,
+      `[Showing first ${headCount} and last ${tailCount} lines. Use offset and limit parameters to read specific sections.]`,
+      "",
+      "--- HEAD ---",
+      head,
+      ...(omitted > 0
+        ? ["", `--- [${omitted} lines omitted] ---`, "", "--- TAIL ---", tail]
+        : []),
+    ].join("\n"),
+  };
 }
 
 async function handleWriteFile(input: Record<string, unknown>): Promise<ToolResult> {
