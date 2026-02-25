@@ -53,6 +53,7 @@ HA_URL=http://192.168.1.100:8123    # Home Assistant URL (optional)
 HA_TOKEN=your_long_lived_token      # HA long-lived access token (optional)
 SECONDARY_LLM_PROVIDER=gemini       # Secondary model provider (optional)
 SECONDARY_LLM_API_KEY=              # API key for secondary provider (optional)
+CODING_LLM_API_KEY=sk-ant-xxxxx    # Coding brain API key (optional, defaults to Anthropic/Opus)
 ```
 
 To create your own Telegram bot:
@@ -138,7 +139,7 @@ bob/
 ├── package.json           # Project config, scripts, dependencies
 ├── tsconfig.json          # TypeScript config (strict, ES2022, NodeNext)
 ├── vitest.config.ts       # Test runner config (ESM, node environment)
-├── tests/                 # Test suite (221 tests across 10 files)
+├── tests/                 # Test suite (239 tests across 10 files)
 │   ├── config.test.ts             # Config defaults, validateConfig
 │   ├── agent/
 │   │   ├── core.test.ts           # Hallucination guard (detectUnusedActions)
@@ -315,10 +316,12 @@ Bob's `buildSystemPrompt()` injects several runtime guardrails:
 ```
 1. Receive user message (from Telegram or dashboard)
 2. Fast-path check: status queries ("what are you doing?") answered instantly from memory — no LLM call
+2b. Fast-path: "dismiss coding warning" — saves preference, no LLM call
 3. Emit "message:in" event to event bus
 4. Load conversation history from memory (last 20 messages for context)
 5. Load owner context (memory/context.md) + build system prompt + select plugin knowledge + select tools
-6. Send to Claude API with system prompt + tool definitions + AbortSignal
+6. Resolve provider: coding brain (code tasks) → primary → secondary (simple worker tasks)
+7. Send to LLM API with system prompt + tool definitions + AbortSignal
 7. If Claude wants to use tools → emit "tool:call", execute, emit "tool:result", loop
 8. Repeat until Claude gives a final text response (max 20 tool rounds)
 9. Save assistant response to memory
@@ -330,6 +333,30 @@ Safety checks at each tool-round boundary:
 - User pause: AbortSignal passed to LLM API — Esc key aborts mid-flight (~1s), checked after LLM + before each tool
 - Circuit breaker: exits if same tool failed with same error twice consecutively
 ```
+
+### Three-Brain Provider Routing (src/agent/core.ts, src/config.ts)
+
+Bob supports three LLM provider tiers, resolved in `resolveProvider()` per-message:
+
+| Brain | Purpose | Config | When Used |
+|-------|---------|--------|-----------|
+| **Coding** | Code writing/editing | `CODING_LLM_API_KEY` (defaults to `anthropic/claude-opus-4-6`) | `isCodingTask()` matches — highest priority, all sources |
+| **Primary** | General chat, complex tasks | `PRIMARY_LLM_*` | Default for everything else |
+| **Secondary** | Cheap background tasks | `SECONDARY_LLM_*` | `isSimpleTask()` matches + source=worker + balanced mode |
+
+**Routing priority:** Coding brain → Primary → Secondary (balanced mode workers only)
+
+**`isCodingTask()` detection** — keyword matching against message text:
+- Direct actions: "write code", "fix the bug", "debug", "refactor", "implement", "code review"
+- File types: ".ts", ".js", ".py", ".html", ".css", "typescript", "javascript", "python"
+- Code concepts: "function ", "class ", "interface ", "unit test", "test for"
+- Bob-specific: "new skill", "create a skill", "add a tool", "local/skills"
+
+**Coding brain warning** — when Bob detects a coding task but no coding brain is configured and the primary isn't Anthropic, appends a dismissable notice to the response. User says "dismiss coding warning" → saved to `profile.preferences.codingWarningDismissed` (fast-path, no LLM call).
+
+**Fallback** — if coding brain or secondary fails, retries on primary with notice appended.
+
+**Config pattern** — `config.codingLlm` is a getter reading `process.env` live (same as `secondaryLlm`). Only `CODING_LLM_API_KEY` is required; provider defaults to `anthropic`, model defaults to `claude-opus-4-6`.
 
 ### Available Tools (~162 built-in across 34 skill modules + dynamic MCP server tools + 53 knowledge skills)
 
@@ -880,18 +907,18 @@ pnpm test             # Run tests (vitest)
 
 ### Test Suite
 
-221 tests across 10 files covering pure-logic core functions. Run with `pnpm test`.
+239 tests across 10 files covering pure-logic core functions. Run with `pnpm test`.
 
 | Area | File | Tests | What it covers |
 |------|------|-------|----------------|
-| Agent | `tests/agent/core.test.ts` | 59 | Hallucination guard, personality presets, isSimpleTask, isStatusCheck, resolveProvider routing |
+| Agent | `tests/agent/core.test.ts` | 74 | Hallucination guard, personality presets, isSimpleTask, isCodingTask, isStatusCheck, resolveProvider routing |
 | Agent | `tests/agent/tool-loader.test.ts` | 29 | Category-based tool selection, keyword matching, meta-tools, countMatchedCategories |
 | Agent | `tests/agent/plugin-loader.test.ts` | 17 | YAML frontmatter parsing, keyword extraction, stop words |
 | Skills | `tests/skills/reminders.test.ts` | 29 | Natural language time parsing, snooze duration, formatting |
 | Skills | `tests/skills/form-filler.test.ts` | 24 | Field normalization, fuzzy vault matching (3-pass) |
 | Tasks | `tests/tasks/busy-state.test.ts` | 12 | Busy state transitions, preemption lifecycle |
 | Tasks | `tests/tasks/escalation.test.ts` | 9 | Channel filtering, dedup, interaction tracking |
-| Config | `tests/config.test.ts` | 10 | Config defaults, A2A settings, validateConfig, cost mode config + hot-reload |
+| Config | `tests/config.test.ts` | 13 | Config defaults, A2A settings, validateConfig, cost mode config + hot-reload, coding brain config |
 | A2A | `tests/a2a/public-skills.test.ts` | 18 | Three-tier security (SAFE/DATA/BLOCKED), trust tiers, MCP blocking |
 | Agent | `tests/agent/read-file.test.ts` | 14 | Smart read_file: size detection, large file preview, chunked reading, output cap, signal abort |
 
@@ -950,7 +977,7 @@ Tests focus on exported pure functions — no network calls, no heavy mocking (e
 - [x] Voice — Telegram voice messages (Whisper STT + edge-tts TTS)
 - [x] Knowledge plugins — Anthropic knowledge-work-plugins integration (11 plugins, 53 skills, tiered injection)
 - [x] Memory system — Two-tier context memory (context.md hot cache + glossary.md decoder ring, decode-first pattern)
-- [x] Two-brain cost mode — dual-provider routing (primary + balanced modes, task complexity assessment, fallback + notify)
+- [x] Three-brain architecture — Primary (general chat) + Secondary (cheap background tasks) + Coding brain (always Claude Opus for code, `isCodingTask()` routing, dismissable warning)
 - [x] Agent interrupt + circuit breaker — Esc key (dashboard), /cancel (Telegram), stuck detection (limit 2), write_file validation
 - [ ] Discord server for Bob community
 
