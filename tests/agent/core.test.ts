@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS, isSimpleTask, isStatusCheck, resolveProvider } from "../../src/agent/core.js";
+import { detectUnusedActions, getPersonalityPrompt, PERSONALITY_PRESETS, isSimpleTask, isCodingTask, isStatusCheck, resolveProvider } from "../../src/agent/core.js";
 
 describe("detectUnusedActions", () => {
   describe("returns null for clean responses", () => {
@@ -210,6 +210,61 @@ describe("isSimpleTask", () => {
   });
 });
 
+describe("isCodingTask", () => {
+  it("detects 'write code' as coding", () => {
+    expect(isCodingTask("write code for a new backup feature")).toBe(true);
+  });
+
+  it("detects 'fix the bug' as coding", () => {
+    expect(isCodingTask("fix the bug in the login handler")).toBe(true);
+  });
+
+  it("detects 'refactor' as coding", () => {
+    expect(isCodingTask("refactor the provider factory")).toBe(true);
+  });
+
+  it("detects 'implement' as coding", () => {
+    expect(isCodingTask("implement the new calendar sync feature")).toBe(true);
+  });
+
+  it("detects TypeScript file references as coding", () => {
+    expect(isCodingTask("edit the file src/config.ts and fix the getter")).toBe(true);
+  });
+
+  it("detects 'create a skill' as coding", () => {
+    expect(isCodingTask("create a skill for tracking packages")).toBe(true);
+  });
+
+  it("detects 'write a function' as coding", () => {
+    expect(isCodingTask("write a function to parse dates")).toBe(true);
+  });
+
+  it("detects 'debug' as coding", () => {
+    expect(isCodingTask("debug why the scheduler isn't firing")).toBe(true);
+  });
+
+  it("detects 'unit test' as coding", () => {
+    expect(isCodingTask("write a unit test for the parser")).toBe(true);
+  });
+
+  it("does not detect weather checks as coding", () => {
+    expect(isCodingTask("check the weather in London")).toBe(false);
+  });
+
+  it("does not detect email tasks as coding", () => {
+    expect(isCodingTask("send an email to Dave about the meeting")).toBe(false);
+  });
+
+  it("does not detect reminders as coding", () => {
+    expect(isCodingTask("remind me to call the dentist tomorrow")).toBe(false);
+  });
+
+  it("is case insensitive", () => {
+    expect(isCodingTask("Write Code for the API")).toBe(true);
+    expect(isCodingTask("REFACTOR the module")).toBe(true);
+  });
+});
+
 describe("resolveProvider", () => {
   it("primary mode always returns primary provider", () => {
     const result = resolveProvider("worker", "primary", "fetch a page");
@@ -248,6 +303,17 @@ describe("resolveProvider", () => {
     // This will be primary if no secondary is configured in env (which is the test case)
     expect(result.provider).toBeDefined();
     expect(result.llmConfig).toBeDefined();
+  });
+
+  it("returns isCoding=false for non-code tasks", () => {
+    const result = resolveProvider("telegram", "primary", "check the weather");
+    expect(result.isCoding).toBe(false);
+  });
+
+  it("returns isCoding=false when coding brain not configured", () => {
+    // Without CODING_LLM_API_KEY set, coding brain should not activate
+    const result = resolveProvider("dashboard", "primary", "write code for a new feature");
+    expect(result.isCoding).toBe(false);
   });
 });
 

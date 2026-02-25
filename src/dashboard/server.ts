@@ -121,12 +121,15 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   // GET /api/status
   if (method === "GET" && url === "/api/status") {
     const secondary = config.secondaryLlm;
+    const coding = config.codingLlm;
     json(res, {
       name: config.agent.name,
       provider: config.llm.provider,
       model: config.llm.model,
       secondaryProvider: secondary?.provider ?? null,
       secondaryModel: secondary?.model ?? null,
+      codingProvider: coding?.provider ?? null,
+      codingModel: coding?.model ?? null,
       costMode: config.costMode.default,
       telegramConfigured: !!config.telegram.botToken,
       botRunning: isBotRunning(),

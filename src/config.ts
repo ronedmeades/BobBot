@@ -30,6 +30,17 @@ export const config = {
       baseUrl: process.env.SECONDARY_LLM_BASE_URL || undefined,
     };
   },
+  /** Coding brain — dedicated model for code tasks. Defaults to Claude Opus 4.6. Getter reads process.env live. */
+  get codingLlm(): LLMConfig | null {
+    const k = process.env.CODING_LLM_API_KEY;
+    if (!k) return null;
+    const p = (process.env.CODING_LLM_PROVIDER ?? "anthropic").toLowerCase();
+    return {
+      provider: p,
+      apiKey: k,
+      model: process.env.CODING_LLM_MODEL ?? "claude-opus-4-6",
+    };
+  },
   costMode: {
     get default(): CostMode {
       const mode = process.env.DEFAULT_COST_MODE?.toLowerCase();
@@ -93,6 +104,9 @@ export function validateConfig(): void {
   }
   if (config.secondaryLlm) {
     console.log(`Cost mode: secondary provider available (${config.secondaryLlm.provider}/${config.secondaryLlm.model})`);
+  }
+  if (config.codingLlm) {
+    console.log(`Coding brain: ${config.codingLlm.provider}/${config.codingLlm.model} (code tasks routed here)`);
   }
   if (config.a2a.enabled) {
     if (!config.a2a.publicUrl) {

@@ -67,6 +67,11 @@ const ALLOWED_KEYS = new Set([
   "SECONDARY_LLM_MODEL",
   "SECONDARY_LLM_BASE_URL",
   "DEFAULT_COST_MODE",
+
+  // Coding brain LLM
+  "CODING_LLM_API_KEY",
+  "CODING_LLM_PROVIDER",
+  "CODING_LLM_MODEL",
 ]);
 
 const ENV_PATH = resolve(".env");
@@ -113,7 +118,7 @@ export const envManagerToolDefinitions: ToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: ["all", "core", "telegram", "dashboard", "ebay", "gmail", "google_calendar", "etsy", "twilio", "backup", "cost_mode"],
+          enum: ["all", "core", "telegram", "dashboard", "ebay", "gmail", "google_calendar", "etsy", "twilio", "backup", "cost_mode", "coding_brain"],
           description: "Filter by category (default: 'all')",
         },
       },
@@ -235,6 +240,10 @@ export async function handleListEnvKeys(
     cost_mode: {
       keys: ["SECONDARY_LLM_PROVIDER", "SECONDARY_LLM_API_KEY", "SECONDARY_LLM_MODEL", "SECONDARY_LLM_BASE_URL", "DEFAULT_COST_MODE"],
       hint: "Secondary model for cost optimization. Gemini Flash (30x cheaper), or Ollama for free local models (SECONDARY_LLM_BASE_URL=http://localhost:11434/v1).",
+    },
+    coding_brain: {
+      keys: ["CODING_LLM_API_KEY", "CODING_LLM_PROVIDER", "CODING_LLM_MODEL"],
+      hint: "Dedicated model for code tasks. Defaults to Claude Opus 4.6 — just set CODING_LLM_API_KEY with an Anthropic key.",
     },
   };
 

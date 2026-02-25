@@ -84,3 +84,55 @@ describe("cost mode config", () => {
     }
   });
 });
+
+describe("coding brain config", () => {
+  it("codingLlm is null when CODING_LLM_API_KEY is not set", () => {
+    const origKey = process.env.CODING_LLM_API_KEY;
+    try {
+      delete process.env.CODING_LLM_API_KEY;
+      expect(config.codingLlm).toBeNull();
+    } finally {
+      if (origKey) process.env.CODING_LLM_API_KEY = origKey;
+      else delete process.env.CODING_LLM_API_KEY;
+    }
+  });
+
+  it("codingLlm defaults to anthropic/claude-opus-4-6 when only API key is set", () => {
+    const origKey = process.env.CODING_LLM_API_KEY;
+    const origProvider = process.env.CODING_LLM_PROVIDER;
+    const origModel = process.env.CODING_LLM_MODEL;
+    try {
+      process.env.CODING_LLM_API_KEY = "test-coding-key";
+      delete process.env.CODING_LLM_PROVIDER;
+      delete process.env.CODING_LLM_MODEL;
+
+      const result = config.codingLlm;
+      expect(result).not.toBeNull();
+      expect(result!.provider).toBe("anthropic");
+      expect(result!.model).toBe("claude-opus-4-6");
+      expect(result!.apiKey).toBe("test-coding-key");
+    } finally {
+      if (origKey) process.env.CODING_LLM_API_KEY = origKey;
+      else delete process.env.CODING_LLM_API_KEY;
+      if (origProvider) process.env.CODING_LLM_PROVIDER = origProvider;
+      else delete process.env.CODING_LLM_PROVIDER;
+      if (origModel) process.env.CODING_LLM_MODEL = origModel;
+      else delete process.env.CODING_LLM_MODEL;
+    }
+  });
+
+  it("codingLlm is a getter that reads process.env live", () => {
+    const origKey = process.env.CODING_LLM_API_KEY;
+    try {
+      process.env.CODING_LLM_API_KEY = "live-test-key";
+      expect(config.codingLlm).not.toBeNull();
+      expect(config.codingLlm!.apiKey).toBe("live-test-key");
+
+      delete process.env.CODING_LLM_API_KEY;
+      expect(config.codingLlm).toBeNull();
+    } finally {
+      if (origKey) process.env.CODING_LLM_API_KEY = origKey;
+      else delete process.env.CODING_LLM_API_KEY;
+    }
+  });
+});

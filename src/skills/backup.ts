@@ -1,5 +1,6 @@
 import { readdir, stat, readFile, writeFile, mkdir, cp } from "node:fs/promises";
 import { resolve, join, basename } from "node:path";
+import { memory } from "../agent/memory.js";
 import type Anthropic from "@anthropic-ai/sdk";
 
 interface ToolResult {
@@ -205,6 +206,9 @@ export async function handleBackupBob(input: Record<string, unknown>): Promise<T
 
   // Calculate total size
   const totalSize = await getDirSize(backupDir);
+
+  // Update the system-last-backup note so the auto-scheduler knows a manual backup occurred
+  await memory.saveNote("system-last-backup", manifest.timestamp);
 
   return {
     success: true,

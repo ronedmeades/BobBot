@@ -41,6 +41,7 @@ export interface ToolCallContent {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  thoughtSignature?: string; // Gemini 3+ thinking model requirement
 }
 
 export interface ToolResultContent {
@@ -75,6 +76,7 @@ export interface ResponseToolCall {
   id: string;
   name: string;
   input: Record<string, unknown>;
+  thoughtSignature?: string; // Gemini 3+ thinking model requirement
 }
 
 export type ResponseBlock = ResponseTextBlock | ResponseToolCall;

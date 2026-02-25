@@ -165,14 +165,43 @@ export function isSimpleTask(description: string): boolean {
   return true;
 }
 
+/** Coding task keywords — detect when code writing/editing is requested */
+const CODING_TASK_PATTERNS = [
+  // Direct code actions
+  "write code", "write a script", "write a function", "write a class",
+  "write a module", "write a skill", "create a skill", "build a skill",
+  "edit code", "fix code", "fix the code", "fix the bug", "debug",
+  "refactor", "implement", "code review",
+  // File type indicators
+  ".ts", ".js", ".py", ".html", ".css",
+  "typescript", "javascript", "python",
+  // Code concepts
+  "function ", "class ", "interface ", "api endpoint",
+  "unit test", "test for",
+  // Bob-specific code tasks
+  "new skill", "add a tool", "create a tool",
+  "local/skills",
+];
+
+/**
+ * Detect if a message/task involves writing or editing code.
+ * Used to route to the coding brain (Claude Opus) for better code quality.
+ */
+export function isCodingTask(message: string): boolean {
+  const lower = message.toLowerCase();
+  return CODING_TASK_PATTERNS.some((p) => lower.includes(p));
+}
+
 export interface ResolvedProvider {
   provider: LLMProvider;
   llmConfig: LLMConfig;
   isSecondary: boolean;
+  isCoding: boolean;
 }
 
 /**
- * Resolve which provider to use based on cost mode and source.
+ * Resolve which provider to use based on cost mode, source, and task type.
+ * Coding brain: code tasks → dedicated coding model (highest priority).
  * primary mode: always use primary.
  * balanced mode: simple background tasks → secondary, everything else → primary.
  */
@@ -183,7 +212,15 @@ export function resolveProvider(
 ): ResolvedProvider {
   const primaryConfig = config.llm;
   const primaryProvider = getProvider(primaryConfig);
-  const primary: ResolvedProvider = { provider: primaryProvider, llmConfig: primaryConfig, isSecondary: false };
+  const primary: ResolvedProvider = { provider: primaryProvider, llmConfig: primaryConfig, isSecondary: false, isCoding: false };
+
+  // Coding brain: route code tasks to dedicated coding model (highest priority, all sources)
+  const codingConfig = config.codingLlm;
+  if (codingConfig && taskDescription && isCodingTask(taskDescription)) {
+    const codingProvider = getProvider(codingConfig);
+    console.log(`[cost-mode] source=${source} model=${codingConfig.model} (coding brain — code task detected)`);
+    return { provider: codingProvider, llmConfig: codingConfig, isSecondary: false, isCoding: true };
+  }
 
   // Primary mode or no secondary configured → always primary
   if (costMode === "primary") return primary;
@@ -198,7 +235,7 @@ export function resolveProvider(
   if (taskDescription && isSimpleTask(taskDescription)) {
     const secondaryProvider = getProvider(secondaryConfig);
     console.log(`[cost-mode] source=worker model=${secondaryConfig.model} (secondary — simple task)`);
-    return { provider: secondaryProvider, llmConfig: secondaryConfig, isSecondary: true };
+    return { provider: secondaryProvider, llmConfig: secondaryConfig, isSecondary: true, isCoding: false };
   }
 
   console.log(`[cost-mode] source=worker model=${primaryConfig.model} (primary — complex task)`);
@@ -245,7 +282,7 @@ Response style:
 - Use bullet points for lists, not paragraphs.
 
 Your model: ${config.llm.model} (provider: ${config.llm.provider})
-Cost mode: ${profile?.preferences?.costMode ?? config.costMode.default}${config.secondaryLlm ? ` | secondary: ${config.secondaryLlm.model} (${config.secondaryLlm.provider})` : " | no secondary configured"}
+Cost mode: ${profile?.preferences?.costMode ?? config.costMode.default}${config.secondaryLlm ? ` | secondary: ${config.secondaryLlm.model} (${config.secondaryLlm.provider})` : " | no secondary configured"}${config.codingLlm ? ` | coding brain: ${config.codingLlm.model} (${config.codingLlm.provider})` : ""}
 Platform: You are running on ${process.platform === "win32" ? "Windows — use PowerShell or cmd syntax (findstr, dir, etc.), NOT Unix commands (grep, ls, cat). The project is ESM (\"type\": \"module\") so use import, not require." : process.platform === "darwin" ? "macOS." : "Linux."}
 
 CRITICAL — Actions require tools:
@@ -393,6 +430,25 @@ export async function runAgent(
     return { text: statusText, toolsUsed: [] };
   }
 
+  // Fast-path: dismiss coding warning — save preference, no LLM call
+  if (!isWorker && !isA2A && userMessage.toLowerCase().includes("dismiss coding warning")) {
+    const dismissProfile = await memory.loadProfile(userId);
+    if (dismissProfile) {
+      dismissProfile.preferences.codingWarningDismissed = true;
+      await memory.saveProfile(dismissProfile);
+    }
+    const dismissText = "Coding warning dismissed. You won't see it again. You can always set up a coding brain later via CODING_LLM_API_KEY.";
+
+    await memory.appendHistory(userId, { role: "user", content: userMessage, timestamp: new Date().toISOString() }, source);
+    await memory.appendHistory(userId, { role: "assistant", content: dismissText, timestamp: new Date().toISOString() }, source);
+
+    const eventSource = source === "telegram" ? "telegram" : "dashboard";
+    events.emitEvent("message:in", { userId, text: userMessage, source: eventSource });
+    events.emitEvent("message:out", { userId, text: dismissText });
+
+    return { text: dismissText, toolsUsed: [] };
+  }
+
   // If a background task is running, preempt it so direct chat takes priority
   // A2A requests don't preempt — they wait or queue
   if (!isWorker && !isA2A && getIsBusy() && getActiveContext() === "worker") {
@@ -521,13 +577,27 @@ async function runAgentInner(
   // Resolve cost mode and provider
   const costMode: CostMode = (profile?.preferences?.costMode as CostMode) ?? config.costMode.default;
   const resolved = options?.systemPrompt
-    ? { provider: getProvider(config.llm), llmConfig: config.llm, isSecondary: false } // A2A/sandbox always use primary
+    ? { provider: getProvider(config.llm), llmConfig: config.llm, isSecondary: false, isCoding: false } // A2A/sandbox always use primary
     : resolveProvider(source, costMode, userMessage);
   let activeProvider = resolved.provider;
   let activeLlmConfig = resolved.llmConfig;
 
   if (!options?.systemPrompt && source !== "worker") {
-    console.log(`[cost-mode] source=${source} model=${activeLlmConfig.model} (${resolved.isSecondary ? "secondary" : "primary"})`);
+    const brainLabel = resolved.isCoding ? "coding brain" : resolved.isSecondary ? "secondary" : "primary";
+    console.log(`[cost-mode] source=${source} model=${activeLlmConfig.model} (${brainLabel})`);
+  }
+
+  // Coding brain warning: show once when coding task detected but no coding brain configured
+  let codingWarningNotice = "";
+  const isCodingMessage = isCodingTask(userMessage);
+  if (
+    !options?.systemPrompt
+    && isCodingMessage
+    && !config.codingLlm
+    && config.llm.provider !== "anthropic"
+    && !profile?.preferences?.codingWarningDismissed
+  ) {
+    codingWarningNotice = `\n\n---\n*You're currently using ${config.llm.provider} (${config.llm.model}) which has known issues with code generation. Recommend setting up a coding brain (CODING_LLM_API_KEY) to route code tasks to Claude Opus. Say "dismiss coding warning" to hide this.*`;
   }
 
   const isDirectChat = source === "telegram" || source === "dashboard";
@@ -652,14 +722,15 @@ async function runAgentInner(
       if (isAbort) {
         return handlePause();
       }
-      // If secondary failed, fall back to primary and notify
-      if (resolved.isSecondary) {
+      // If secondary or coding brain failed, fall back to primary and notify
+      if (resolved.isSecondary || resolved.isCoding) {
+        const label = resolved.isCoding ? "Coding brain" : "Secondary model";
         const reason = err instanceof Error ? err.message : String(err);
-        console.log(`[cost-mode] Secondary failed (${reason}), falling back to primary`);
+        console.log(`[cost-mode] ${label} failed (${reason}), falling back to primary`);
         const primaryConfig = config.llm;
         activeProvider = getProvider(primaryConfig);
         activeLlmConfig = primaryConfig;
-        fallbackNotice = `\n\n---\n*Secondary model failed (${activeLlmConfig.provider}): ${reason}. Fell back to primary model for this task.*`;
+        fallbackNotice = `\n\n---\n*${label} failed (${reason}). Fell back to primary model for this task.*`;
         response = await activeProvider.chat({
           model: activeLlmConfig.model,
           maxTokens: 4096,
@@ -720,7 +791,7 @@ async function runAgentInner(
 
     // If no tool calls, check for hallucinated actions before finishing
     if (response.stopReason === "end_turn" || toolUseBlocks.length === 0) {
-      let finalText = (textBlocks.join("\n") || "(No response)") + fallbackNotice;
+      let finalText = (textBlocks.join("\n") || "(No response)") + fallbackNotice + codingWarningNotice;
 
       // Detect text truncation — append indicator so user can ask to continue
       if (response.stopReason === "max_tokens") {

@@ -73,15 +73,21 @@ export class GeminiProvider implements LLMProvider {
               });
               break;
 
-            case "tool_use":
+            case "tool_use": {
               // Assistant's function call — Gemini uses functionCall part
-              parts.push({
+              const fcPart: Record<string, unknown> = {
                 functionCall: {
                   name: block.name,
                   args: block.input,
                 },
-              });
+              };
+              // Gemini 3+ thinking models require thought signatures on function calls
+              if (block.thoughtSignature) {
+                fcPart.thoughtSignature = block.thoughtSignature;
+              }
+              parts.push(fcPart as Part);
               break;
+            }
 
             case "tool_result":
               // Tool results use functionResponse — must be on "function" role
@@ -137,13 +143,19 @@ export class GeminiProvider implements LLMProvider {
       }
       if (part.functionCall) {
         hasToolCalls = true;
-        content.push({
+        const toolCall: ResponseBlock = {
           type: "tool_use",
           // Gemini doesn't use IDs for tool calls — generate one
           id: `gemini_${part.functionCall.name}_${Date.now()}`,
           name: part.functionCall.name,
           input: (part.functionCall.args ?? {}) as Record<string, unknown>,
-        });
+        };
+        // Gemini 3+ thinking models return thought signatures that must be passed back
+        const sig = (part as Record<string, unknown>).thoughtSignature;
+        if (sig && typeof sig === "string") {
+          (toolCall as Record<string, unknown>).thoughtSignature = sig;
+        }
+        content.push(toolCall);
       }
     }
 
