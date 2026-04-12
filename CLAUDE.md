@@ -358,7 +358,7 @@ Bob supports three LLM provider tiers, resolved in `resolveProvider()` per-messa
 
 **Config pattern** — `config.codingLlm` is a getter reading `process.env` live (same as `secondaryLlm`). Only `CODING_LLM_API_KEY` is required; provider defaults to `anthropic`, model defaults to `claude-opus-4-6`.
 
-### Available Tools (~162 built-in across 34 skill modules + dynamic MCP server tools + 53 knowledge skills)
+### Available Tools (~164 built-in across 34 skill modules + dynamic MCP server tools + 53 knowledge skills)
 
 **Core Tools (14):**
 | Tool | What It Does |
@@ -387,7 +387,7 @@ Bob supports three LLM provider tiers, resolved in `resolveProvider()` per-messa
 | `add_watermark` | Overlay text watermark on images |
 | `auto_crop` | Trim whitespace/borders from images |
 
-**eBay Listing (8)** — requires eBay API credentials (`EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_REFRESH_TOKEN`, `EBAY_ENVIRONMENT`, optional `EBAY_RUNAME` for OAuth setup):
+**eBay Listing (10)** — requires eBay API credentials (`EBAY_CLIENT_ID`, `EBAY_CLIENT_SECRET`, `EBAY_REFRESH_TOKEN`, `EBAY_ENVIRONMENT`, `EBAY_RUNAME`):
 | Tool | What It Does |
 |------|-------------|
 | `create_ebay_listing` | Create a fixed-price listing via Inventory API |
@@ -398,6 +398,8 @@ Bob supports three LLM provider tiers, resolved in `resolveProvider()` per-messa
 | `get_seller_listings` | List all active seller listings |
 | `update_ebay_listing` | Update an existing listing (price, title, etc.) |
 | `bulk_update_prices` | Batch price updates across multiple listings |
+| `ebay_get_auth_url` | Generate eBay OAuth sign-in URL with correct scopes |
+| `ebay_exchange_code` | Exchange OAuth authorization code for refresh token (auto-extracts code from URL, saves to .env) |
 
 **Batch Poster Workflow (4):**
 | Tool | What It Does |

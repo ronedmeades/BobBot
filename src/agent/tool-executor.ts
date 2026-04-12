@@ -18,6 +18,8 @@ import {
   handleGetSellerListings,
   handleUpdateEbayListing,
   handleBulkUpdatePrices,
+  handleEbayGetAuthUrl,
+  handleEbayExchangeCode,
 } from "../skills/ebay-listing.js";
 import {
   handleBatchListPosters,
@@ -377,6 +379,10 @@ export async function executeTool(
         return await handleUpdateEbayListing(input);
       case "bulk_update_prices":
         return await handleBulkUpdatePrices(input);
+      case "ebay_get_auth_url":
+        return await handleEbayGetAuthUrl();
+      case "ebay_exchange_code":
+        return await handleEbayExchangeCode(input);
       // Batch workflow skills
       case "batch_list_posters":
         return await handleBatchListPosters(input);
@@ -813,7 +819,7 @@ async function handleReadFile(
 ): Promise<ToolResult> {
   const path = resolve(input.path as string);
   if (isBlockedPath(path)) {
-    return { success: false, output: "Access denied — this file contains credentials and cannot be read." };
+    return { success: false, output: "Access denied — cannot read credential files directly. Use list_env_keys to check which env vars are set, and set_env_var to add or update them." };
   }
 
   if (context?.signal?.aborted) {

@@ -146,7 +146,7 @@ describe("read_file smart handling", () => {
     it("blocks .env files", async () => {
       const result = await executeTool("read_file", { path: "/home/user/.env" });
       expect(result.success).toBe(false);
-      expect(result.output).toContain("credentials");
+      expect(result.output).toContain("credential files");
     });
   });
 

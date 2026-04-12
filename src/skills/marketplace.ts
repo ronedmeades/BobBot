@@ -281,6 +281,22 @@ export async function handleMarketplaceTestConnection(input: Record<string, unkn
   if (result.success) {
     return { success: true, output: `${adapter.displayName} connection successful!` };
   }
+
+  // Provide actionable guidance for common eBay OAuth errors
+  const err = result.error ?? "";
+  if (platform === "ebay" && (err.includes("invalid_grant") || err.includes("OAuth failed"))) {
+    return {
+      success: false,
+      output: `${adapter.displayName} connection failed: ${err}\n\n` +
+        `This means the refresh token is expired or invalid. To fix this:\n` +
+        `1. Use list_env_keys to check if EBAY_RUNAME is set (required for OAuth)\n` +
+        `2. Use ebay_get_auth_url to generate a fresh sign-in URL\n` +
+        `3. Have the user open the URL in a browser and sign in\n` +
+        `4. Use ebay_exchange_code with the code from the redirect URL\n\n` +
+        `Do NOT retry marketplace_test_connection — fix the token first.`,
+    };
+  }
+
   return { success: false, output: `${adapter.displayName} connection failed: ${result.error}` };
 }
 
