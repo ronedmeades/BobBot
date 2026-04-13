@@ -66,11 +66,10 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       "batch list", "standing rule", "sku", "oauth", "token", "connect", "authorize", "auth",
     ],
     toolNames: [
-      // eBay (10) + env tools for token saving
+      // eBay (10)
       "create_ebay_listing", "upload_ebay_image", "search_ebay_category",
       "generate_listing_content", "get_ebay_listing_status", "get_seller_listings",
       "update_ebay_listing", "bulk_update_prices", "ebay_get_auth_url", "ebay_exchange_code",
-      "set_env_var", "list_env_keys",
       // Batch (4)
       "batch_list_posters", "batch_list_status", "review_batch_samples", "approve_batch",
       // Marketplace (10)
@@ -80,6 +79,17 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       "marketplace_order_summary", "marketplace_get_unshipped", "marketplace_bulk_ship",
       // Standing rules (4)
       "create_standing_rule", "list_standing_rules", "update_standing_rule", "remove_standing_rule",
+      // Env tools (token saving)
+      "set_env_var", "list_env_keys",
+      // Image tools (listing photos)
+      "batch_resize_images", "convert_image_format", "generate_thumbnails",
+      "add_watermark", "auto_crop", "analyze_image", "analyze_poster_for_listing", "show_image",
+      // Vision (poster analysis)
+      "analyze_image", "analyze_poster_for_listing",
+      // Inventory (product catalog)
+      "read_csv", "read_spreadsheet", "index_inventory", "search_inventory", "get_inventory_stats",
+      // Browser (OAuth sign-in)
+      "browse_url", "click_element", "type_into", "extract_content", "take_screenshot", "close_browser",
     ],
   },
   {
