@@ -39,6 +39,10 @@ import { selectPluginKnowledgeForMessage } from "./plugin-loader.js";
 /** Track active agent runs for user-initiated cancellation. */
 const activeRuns = new Map<string, AbortController>();
 
+function createRunId(): string {
+  return Math.random().toString(36).slice(2, 8);
+}
+
 /** Cancel an active agent run. Returns true if a run was cancelled. */
 export function cancelAgentRun(userId: string): boolean {
   const controller = activeRuns.get(userId);
@@ -408,6 +412,7 @@ export async function runAgent(
   source: AgentSource = "telegram",
   options?: AgentOptions
 ): Promise<AgentResponse> {
+  const runId = createRunId();
   const isWorker = source === "worker";
   const isA2A = source === "a2a";
 
@@ -469,6 +474,21 @@ export async function runAgent(
     }
   }
 
+  // A fresh direct chat message should preempt any older direct chat run for the same user.
+  if (!isWorker && !isA2A) {
+    const existingRun = activeRuns.get(userId);
+    if (existingRun) {
+      console.log("[agent] New chat message — aborting previous direct run");
+      existingRun.abort();
+
+      const maxWait = 2_000;
+      const start = Date.now();
+      while (activeRuns.get(userId) === existingRun && Date.now() - start < maxWait) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    }
+  }
+
   const controller = new AbortController();
   activeRuns.set(userId, controller);
 
@@ -477,12 +497,17 @@ export async function runAgent(
   }
 
   try {
-    return await runAgentInner(userId, userMessage, source, options, controller.signal);
+    const result = await runAgentInner(userId, userMessage, source, options, controller.signal, runId);
+    console.log(`[agent:${runId}] done source=${source} tools=${result.toolsUsed.length}`);
+    return result;
   } finally {
-    activeRuns.delete(userId);
-    if (!isWorker && !isA2A) {
+    if (activeRuns.get(userId) === controller) {
+      activeRuns.delete(userId);
+    }
+    if (!isWorker && !isA2A && activeRuns.get(userId) === undefined) {
       setIsBusy(false);
     }
+    console.log(`[agent:${runId}] cleanup`);
   }
 }
 
@@ -550,8 +575,10 @@ async function runAgentInner(
   userMessage: string,
   source: AgentSource,
   options: AgentOptions | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
+  runId: string
 ): Promise<AgentResponse> {
+  console.log(`[agent:${runId}] start source=${source} user=${userId} msg=${JSON.stringify(userMessage.slice(0, 120))}`);
   const eventSource = source === "worker" || source === "a2a" ? "dashboard" : source;
   events.emitEvent("message:in", { userId, text: userMessage, source: eventSource });
 
@@ -646,11 +673,6 @@ async function runAgentInner(
   const toolCallSummaries: Array<{ tool: string; success: boolean; snippet: string }> = [];
   let rounds = 0;
 
-  // Circuit breaker: detect repeated identical tool errors (stuck detection)
-  let lastErrorKey: string | null = null;
-  let consecutiveErrorCount = 0;
-  const CIRCUIT_BREAKER_LIMIT = 2;
-
   // Build a pause message with context about what was done
   function buildPauseMessage(): string {
     if (toolCallSummaries.length === 0) {
@@ -669,7 +691,7 @@ async function runAgentInner(
   // Handle pause: save to history + emit events + return
   async function handlePause(): Promise<AgentResponse> {
     const pauseMsg = buildPauseMessage();
-    console.log(`[agent] Run paused by user (${source}), ${rounds} rounds, ${toolsUsed.length} tools`);
+    console.log(`[agent:${runId}] paused source=${source} rounds=${rounds} tools=${toolsUsed.length}`);
 
     await memory.appendHistory(userId, {
       role: "assistant",
@@ -687,7 +709,7 @@ async function runAgentInner(
   while (rounds < maxToolRounds) {
     // Check if worker should yield to a direct chat message
     if (source === "worker" && isPreemptRequested()) {
-      console.log("[agent] Worker preempted by direct chat — yielding");
+      console.log(`[agent:${runId}] worker preempted by direct chat`);
       clearPreempt();
       events.emitEvent("agent:status", { userId, status: "done", detail: "Preempted" });
       return { text: "(Preempted by direct chat — will continue on next tick)", toolsUsed };
@@ -853,7 +875,7 @@ async function runAgentInner(
         }
 
         toolsUsed.push(toolUse.name);
-        console.log(`  [tool] ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 100)})`);
+        console.log(`[agent:${runId}] tool=${toolUse.name} input=${JSON.stringify(toolUse.input).slice(0, 100)}`);
 
         events.emitEvent("tool:call", { tool: toolUse.name, input: toolUse.input, userId });
 
@@ -907,42 +929,31 @@ async function runAgentInner(
       return handlePause();
     }
 
-    // Circuit breaker: detect repeated identical tool errors
     const failedResults = toolResults.filter(r => r.is_error);
     if (failedResults.length > 0) {
-      const failedBlock = toolUseBlocks.find(b => b.id === failedResults[0].tool_use_id);
-      const errorKey = `${failedBlock?.name}:${failedResults[0].content.slice(0, 100)}`;
-
-      if (errorKey === lastErrorKey) {
-        consecutiveErrorCount++;
-      } else {
-        lastErrorKey = errorKey;
-        consecutiveErrorCount = 1;
-      }
-
-      if (consecutiveErrorCount >= CIRCUIT_BREAKER_LIMIT) {
+      const failedSummaries = failedResults.map((result) => {
+        const failedBlock = toolUseBlocks.find((block) => block.id === result.tool_use_id);
         const toolName = failedBlock?.name ?? "unknown";
-        const errorPreview = failedResults[0].content.slice(0, 200);
+        const errorPreview = result.content.slice(0, 300);
+        return `- ${toolName}: ${errorPreview}`;
+      });
 
-        console.log(`[agent] Circuit breaker: ${toolName} failed ${CIRCUIT_BREAKER_LIMIT}x with same error`);
+      const stopMsg =
+        `Stopped because a tool failed.\n\n${failedSummaries.join("\n\n")}\n\n` +
+        "I haven't continued past the error, so no more tokens are spent chasing it. Tell me what to try next once you've fixed the issue or want a different approach.";
 
-        const breakerMsg = `I'm stuck — \`${toolName}\` failed twice with the same error:\n\n> ${errorPreview}\n\nThis needs a different approach or a fix on your end. What would you like me to try?`;
+      console.log(`[agent:${runId}] stopped on tool error`);
 
-        await memory.appendHistory(userId, {
-          role: "assistant",
-          content: breakerMsg,
-          timestamp: new Date().toISOString(),
-        }, source);
+      await memory.appendHistory(userId, {
+        role: "assistant",
+        content: stopMsg,
+        timestamp: new Date().toISOString(),
+      }, source);
 
-        events.emitEvent("agent:status", { userId, status: "done", detail: "Circuit breaker" });
-        events.emitEvent("message:out", { userId, text: breakerMsg });
+      events.emitEvent("agent:status", { userId, status: "done", detail: "Tool error" });
+      events.emitEvent("message:out", { userId, text: stopMsg });
 
-        return { text: breakerMsg, toolsUsed };
-      }
-    } else {
-      // A round with no failures — reset the tracker
-      lastErrorKey = null;
-      consecutiveErrorCount = 0;
+      return { text: stopMsg, toolsUsed };
     }
 
     // Add tool results to conversation
@@ -974,6 +985,8 @@ async function runAgentInner(
     content: fallback,
     timestamp: new Date().toISOString(),
   }, source);
+
+  console.log(`[agent:${runId}] max rounds reached`);
 
   events.emitEvent("agent:status", { userId, status: "done" });
   events.emitEvent("message:out", { userId, text: fallback });
