@@ -15,7 +15,7 @@ export interface UserProfile {
   chatId: number;
   firstSeen: string;
   lastSeen: string;
-  preferences: Record<string, string>;
+  preferences: Record<string, string | boolean>;
   notes: string;
 }
 

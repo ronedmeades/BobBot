@@ -32,6 +32,14 @@ interface ToolResult {
   output: string;
 }
 
+function requireA2AEnabled(): ToolResult | null {
+  if (config.a2a.enabled) return null;
+  return {
+    success: false,
+    output: "A2A is not enabled. Set A2A_ENABLED=true in .env and restart Bob.",
+  };
+}
+
 // ─── Tool Definitions ────────────────────────────────────────────────
 
 export const a2aClientToolDefinitions: ToolDefinition[] = [
@@ -181,6 +189,9 @@ export const a2aClientToolDefinitions: ToolDefinition[] = [
 // ─── Handlers ────────────────────────────────────────────────────────
 
 export async function handleDiscoverAgent(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const baseUrl = (input.url as string).replace(/\/+$/, "");
 
   // Fetch Agent Card
@@ -277,6 +288,9 @@ export async function handleDiscoverAgent(input: Record<string, unknown>): Promi
 }
 
 export async function handleSendToAgent(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const peerId = input.peer_id as string;
   const message = input.message as string;
 
@@ -366,9 +380,8 @@ export async function handleSendToAgent(input: Record<string, unknown>): Promise
 }
 
 export async function handleListPeers(): Promise<ToolResult> {
-  if (!config.a2a.enabled) {
-    return { success: false, output: "A2A is not enabled. Set A2A_ENABLED=true in .env and restart." };
-  }
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
 
   const peers = await listPeers();
   if (peers.length === 0) {
@@ -387,6 +400,9 @@ export async function handleListPeers(): Promise<ToolResult> {
 }
 
 export async function handleGetPeerDetails(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const peerId = input.peer_id as string;
   const peer = await getPeer(peerId);
   if (!peer) {
@@ -421,6 +437,9 @@ export async function handleGetPeerDetails(input: Record<string, unknown>): Prom
 }
 
 export async function handleSetPeerTrust(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const peerId = input.peer_id as string;
   const tier = input.trust_tier as TrustTier;
   const budgetCap = input.budget_cap as number | undefined;
@@ -456,6 +475,9 @@ export async function handleSetPeerTrust(input: Record<string, unknown>): Promis
 }
 
 export async function handleRemovePeer(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const peerId = input.peer_id as string;
   const peer = await getPeer(peerId);
   if (!peer) {
@@ -467,6 +489,9 @@ export async function handleRemovePeer(input: Record<string, unknown>): Promise<
 }
 
 export async function handleA2AAuditLog(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const peerId = input.peer_id as string | undefined;
   const limit = (input.limit as number) ?? 20;
 
@@ -489,6 +514,9 @@ export async function handleA2AAuditLog(input: Record<string, unknown>): Promise
 }
 
 export async function handleApproveA2ARequest(input: Record<string, unknown>): Promise<ToolResult> {
+  const disabled = requireA2AEnabled();
+  if (disabled) return disabled;
+
   const requestId = input.request_id as string;
   const decision = input.decision as "approve" | "reject";
 

@@ -75,17 +75,15 @@ export class GeminiProvider implements LLMProvider {
 
             case "tool_use": {
               // Assistant's function call — Gemini uses functionCall part
-              const fcPart: Record<string, unknown> = {
+              const fcPart = {
                 functionCall: {
                   name: block.name,
                   args: block.input,
                 },
-              };
+                ...(block.thoughtSignature ? { thoughtSignature: block.thoughtSignature } : {}),
+              } as unknown as Part;
               // Gemini 3+ thinking models require thought signatures on function calls
-              if (block.thoughtSignature) {
-                fcPart.thoughtSignature = block.thoughtSignature;
-              }
-              parts.push(fcPart as Part);
+              parts.push(fcPart);
               break;
             }
 
@@ -151,9 +149,9 @@ export class GeminiProvider implements LLMProvider {
           input: (part.functionCall.args ?? {}) as Record<string, unknown>,
         };
         // Gemini 3+ thinking models return thought signatures that must be passed back
-        const sig = (part as Record<string, unknown>).thoughtSignature;
+        const sig = (part as unknown as { thoughtSignature?: unknown }).thoughtSignature;
         if (sig && typeof sig === "string") {
-          (toolCall as Record<string, unknown>).thoughtSignature = sig;
+          toolCall.thoughtSignature = sig;
         }
         content.push(toolCall);
       }

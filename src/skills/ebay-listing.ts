@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { setEnvVarValue } from "./env-manager.js";
 
 // eBay API integration for creating and managing listings.
 // Requires eBay developer credentials in .env:
@@ -1091,23 +1092,7 @@ export async function handleEbayExchangeCode(input: Record<string, unknown>): Pr
       };
     }
 
-    // Save the refresh token to .env via the env manager
-    const { writeFileSync, readFileSync } = await import("fs");
-    const { resolve } = await import("path");
-    const envPath = resolve(process.cwd(), ".env");
-    let envContent = "";
-    try {
-      envContent = readFileSync(envPath, "utf-8");
-    } catch { /* no .env yet */ }
-
-    // Update or add EBAY_REFRESH_TOKEN
-    if (envContent.match(/^EBAY_REFRESH_TOKEN=/m)) {
-      envContent = envContent.replace(/^EBAY_REFRESH_TOKEN=.*$/m, `EBAY_REFRESH_TOKEN=${refreshToken}`);
-    } else {
-      envContent = envContent.trimEnd() + `\nEBAY_REFRESH_TOKEN=${refreshToken}\n`;
-    }
-    writeFileSync(envPath, envContent);
-    process.env.EBAY_REFRESH_TOKEN = refreshToken;
+    await setEnvVarValue("EBAY_REFRESH_TOKEN", refreshToken);
 
     // Verify the token works by getting a fresh access token
     let verified = false;

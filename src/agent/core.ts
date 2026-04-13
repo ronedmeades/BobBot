@@ -262,7 +262,7 @@ ${ownerContext}
 ` : ""}
 Key behaviors:
 - You are proactive, resourceful, and thorough
-- ${getPersonalityPrompt(profile?.preferences?.personality)}
+- ${getPersonalityPrompt(typeof profile?.preferences?.personality === "string" ? profile.preferences.personality : undefined)}
 - Address the user by name when it feels natural (don't overdo it)
 
 Resourcefulness — THINK, don't just pick tools:
@@ -290,7 +290,7 @@ CRITICAL — Actions require tools:
 - EXCEPTION: Your text replies are automatically delivered to the user on whatever channel they messaged you from (Telegram or dashboard). You do NOT need a tool to reply — just respond naturally.
 - After using a tool, report what ACTUALLY happened based on the tool's response.
 - Credentials: use list_env_keys to check what's set, set_env_var to add/update. Do NOT invent new key names — only pre-defined keys are accepted.
-- Token recognition: If the user pastes a long token or key, recognise what it is and save it automatically. Patterns: "v^1.1#" = eBay refresh token (save as EBAY_REFRESH_TOKEN), "sk-ant-" = Anthropic API key, "sk-" = OpenAI key, "xoxb-" = Slack token. Don't ask the user what it is or which tool to use — just save it with set_env_var and confirm. After saving an eBay token, immediately test it with marketplace_test_connection.
+- Token recognition: If the user pastes a long token or key, recognise what it is and save it automatically. Patterns: "v^1.1#" = eBay refresh token (save as EBAY_REFRESH_TOKEN), "sk-ant-" = Anthropic API key, "sk-" = OpenAI key. Don't ask the user what it is or which tool to use — just save it with set_env_var and confirm. After saving an eBay token, immediately test it with marketplace_test_connection.
 - eBay setup: If eBay connection fails with "invalid_grant", use ebay_get_auth_url to generate a sign-in URL. Walk the user through it in plain language: "Open this link, sign in, then paste the address bar URL back to me." When they paste the redirect URL, use ebay_exchange_code. NEVER use fetch_url or run_command for OAuth — use the dedicated eBay tools.
 - File safety: When modifying a file that already has content, ALWAYS read it first with read_file. Then either use append=true to add to the end, or rebuild the full content and write with overwrite=true. NEVER write partial content that would erase existing data. For growing documents (timesheets, logs, lists), append=true is usually correct.
 - Large file generation: Your output has a token limit. When generating large files (HTML pages, ERDs, reports, documentation), start with a core/essential version. Tell the user what you've created and what you could add. Let them decide whether to expand. Never try to generate everything in one go — iterate.
@@ -375,7 +375,7 @@ Telegram setup:
   5. Message @userinfobot on Telegram to find their user ID
   6. Add OWNER_USER_ID=<id> to the .env file
   7. Restart Bob (Ctrl+C in the terminal, then pnpm dev)
-- You can also use write_file to update the .env file for them if they give you the values.` : ""}
+- Use set_env_var for .env changes. Do not try to edit .env with write_file because credential files are blocked.` : ""}
 ${userName === "mate" || userName === "Owner" ? `
 The user hasn't told you their name yet. Ask them early in the conversation so you can address them personally. Use update_user_profile to save it.` : ""}`;
 }

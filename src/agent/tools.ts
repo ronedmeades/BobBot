@@ -339,10 +339,10 @@ const builtinTools: ToolDefinition[] = [
   ...mcpManagerToolDefinitions,
   // Analytics & history (search conversations, tool stats, event log)
   ...analyticsToolDefinitions,
-  // Home Assistant smart home control (only when HA_TOKEN is set)
-  ...(config.homeAssistant.token ? homeAssistantToolDefinitions : []),
-  // A2A client tools (only when A2A is enabled)
-  ...(config.a2a.enabled ? a2aClientToolDefinitions : []),
+  // Home Assistant tools stay visible so Bob can guide setup through chat
+  ...homeAssistantToolDefinitions,
+  // A2A client tools stay visible so Bob can explain enablement and required restart
+  ...a2aClientToolDefinitions,
 ];
 
 /**

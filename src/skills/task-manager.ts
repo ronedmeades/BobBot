@@ -167,8 +167,8 @@ export async function handleCreateBackgroundTask(
   if (notifyVia.length === 0) {
     const profile = await memory.loadProfile(userId);
     const defaultPref = profile?.preferences?.notify_default;
-    if (defaultPref) {
-      notifyVia = defaultPref.split(",").map((s) => s.trim()) as NotifyChannel[];
+    if (typeof defaultPref === "string" && defaultPref) {
+      notifyVia = defaultPref.split(",").map((s: string) => s.trim()) as NotifyChannel[];
     }
   }
 

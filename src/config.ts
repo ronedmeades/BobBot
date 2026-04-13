@@ -10,13 +10,25 @@ const DEFAULT_MODELS: Record<string, string> = {
   gemini: "gemini-3.1-pro-preview",
 };
 
-const provider = (process.env.PRIMARY_LLM_PROVIDER ?? "anthropic").toLowerCase();
+function getPrimaryProvider(): string {
+  return (process.env.PRIMARY_LLM_PROVIDER ?? "anthropic").toLowerCase();
+}
 
 export const config = {
   llm: {
-    provider,
-    apiKey: process.env.PRIMARY_LLM_API_KEY ?? "",
-    model: process.env.PRIMARY_LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6",
+    get provider(): string {
+      return getPrimaryProvider();
+    },
+    get apiKey(): string {
+      return process.env.PRIMARY_LLM_API_KEY ?? "";
+    },
+    get model(): string {
+      const provider = getPrimaryProvider();
+      return process.env.PRIMARY_LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6";
+    },
+    get baseUrl(): string | undefined {
+      return undefined;
+    },
   } satisfies LLMConfig,
   /** Secondary LLM for balanced mode. Getter reads process.env live so set_env_var hot-reload works. */
   get secondaryLlm(): LLMConfig | null {
@@ -49,32 +61,60 @@ export const config = {
     },
   },
   telegram: {
-    botToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
+    get botToken(): string {
+      return process.env.TELEGRAM_BOT_TOKEN ?? "";
+    },
   },
   owner: {
-    userId: process.env.OWNER_USER_ID || "owner",
-    name: process.env.OWNER_NAME ?? "Owner",
-    notes: process.env.OWNER_NOTES ?? "",
-    timezone: process.env.OWNER_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    get userId(): string {
+      return process.env.OWNER_USER_ID || "owner";
+    },
+    get name(): string {
+      return process.env.OWNER_NAME ?? "Owner";
+    },
+    get notes(): string {
+      return process.env.OWNER_NOTES ?? "";
+    },
+    get timezone(): string {
+      return process.env.OWNER_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    },
   },
   dashboard: {
-    apiToken: process.env.BOB_API_TOKEN ?? "",
+    get apiToken(): string {
+      return process.env.BOB_API_TOKEN ?? "";
+    },
   },
   agent: {
     name: "Bob",
     maxToolRounds: 20,
   },
   homeAssistant: {
-    url: process.env.HA_URL ?? "http://localhost:8123",
-    token: process.env.HA_TOKEN ?? "",
+    get url(): string {
+      return process.env.HA_URL ?? "http://localhost:8123";
+    },
+    get token(): string {
+      return process.env.HA_TOKEN ?? "";
+    },
   },
   a2a: {
-    enabled: !!process.env.A2A_ENABLED,
-    discoveryMode: (process.env.A2A_DISCOVERY_MODE ?? "handshake") as DiscoveryMode,
-    publicUrl: process.env.A2A_PUBLIC_URL ?? "",
-    agentName: process.env.A2A_AGENT_NAME ?? (process.env.OWNER_NAME ? `${process.env.OWNER_NAME}'s Bob` : "Bob"),
-    defaultTrustTier: (process.env.A2A_DEFAULT_TRUST ?? "manual") as TrustTier,
-    approvalTimeoutMin: Number(process.env.A2A_APPROVAL_TIMEOUT_MIN) || 30,
+    get enabled(): boolean {
+      return !!process.env.A2A_ENABLED;
+    },
+    get discoveryMode(): DiscoveryMode {
+      return (process.env.A2A_DISCOVERY_MODE ?? "handshake") as DiscoveryMode;
+    },
+    get publicUrl(): string {
+      return process.env.A2A_PUBLIC_URL ?? "";
+    },
+    get agentName(): string {
+      return process.env.A2A_AGENT_NAME ?? (process.env.OWNER_NAME ? `${process.env.OWNER_NAME}'s Bob` : "Bob");
+    },
+    get defaultTrustTier(): TrustTier {
+      return (process.env.A2A_DEFAULT_TRUST ?? "manual") as TrustTier;
+    },
+    get approvalTimeoutMin(): number {
+      return Number(process.env.A2A_APPROVAL_TIMEOUT_MIN) || 30;
+    },
     maxRequestBodyBytes: 1_048_576, // 1MB
   },
 };
