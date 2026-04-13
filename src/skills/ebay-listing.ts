@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { getEnvValue } from "../env.js";
+import { getEnvValue, readRawEnvValue } from "../env.js";
 import { setEnvVarValue } from "./env-manager.js";
 
 // eBay API integration for creating and managing listings.
@@ -63,7 +63,7 @@ export async function getAccessToken(config: EbayConfig): Promise<string> {
   if (!response.ok) {
     const text = await response.text();
     const hint = text.includes("invalid_grant")
-      ? " The refresh token is expired or invalid — use ebay_get_auth_url and ebay_exchange_code to get a new one. Do NOT retry with the same token."
+      ? " The refresh token is expired or invalid â€” use ebay_get_auth_url and ebay_exchange_code to get a new one. Do NOT retry with the same token."
       : "";
     throw new Error(`eBay OAuth failed (${response.status}): ${text}${hint}`);
   }
@@ -279,7 +279,7 @@ export const ebayToolDefinitions: Anthropic.Tool[] = [
   {
     name: "ebay_get_auth_url",
     description:
-      "Generate the eBay OAuth sign-in URL. Open this in a browser to authorize Bob. After signing in, eBay redirects to a URL containing an authorization code — pass that code to ebay_exchange_code.",
+      "Generate the eBay OAuth sign-in URL. Open this in a browser to authorize Bob. After signing in, eBay redirects to a URL containing an authorization code â€” pass that code to ebay_exchange_code.",
     input_schema: {
       type: "object" as const,
       properties: {},
@@ -289,13 +289,13 @@ export const ebayToolDefinitions: Anthropic.Tool[] = [
   {
     name: "ebay_exchange_code",
     description:
-      "Exchange an eBay authorization code for a refresh token. Takes the code from the redirect URL after OAuth sign-in (or the full redirect URL — the code will be extracted automatically). Saves the refresh token to .env via set_env_var. The authorization code expires in 5 minutes, so use this immediately after sign-in.",
+      "Exchange an eBay authorization code for a refresh token. Takes the code from the redirect URL after OAuth sign-in (or the full redirect URL â€” the code will be extracted automatically). Saves the refresh token to .env via set_env_var. The authorization code expires in 5 minutes, so use this immediately after sign-in.",
     input_schema: {
       type: "object" as const,
       properties: {
         code: {
           type: "string",
-          description: "The authorization code from the eBay redirect URL (either just the code value, or the full redirect URL — the code will be extracted automatically)",
+          description: "The authorization code from the eBay redirect URL (either just the code value, or the full redirect URL â€” the code will be extracted automatically)",
         },
       },
       required: ["code"],
@@ -578,7 +578,7 @@ export async function handleGetEbayListingStatus(input: Record<string, unknown>)
   };
 }
 
-// --- Get seller listings (Trading API — sees ALL listings, not just API-created) ---
+// --- Get seller listings (Trading API â€” sees ALL listings, not just API-created) ---
 
 async function getListingsViaTrading(token: string, limit: number): Promise<ToolResult> {
   const tradingBody = `<?xml version="1.0" encoding="utf-8"?>
@@ -615,7 +615,7 @@ async function getListingsViaTrading(token: string, limit: number): Promise<Tool
   if (ackMatch && ackMatch[1] === "Failure") {
     const errMsg = text.match(/<ShortMessage>(.*?)<\/ShortMessage>/)?.[1] ?? "Unknown error";
     const errDetail = text.match(/<LongMessage>(.*?)<\/LongMessage>/)?.[1] ?? "";
-    return { success: false, output: `eBay error: ${errMsg}${errDetail ? " — " + errDetail : ""}` };
+    return { success: false, output: `eBay error: ${errMsg}${errDetail ? " â€” " + errDetail : ""}` };
   }
 
   // Parse active listings from XML
@@ -669,7 +669,7 @@ export async function handleGetSellerListings(input: Record<string, unknown>): P
   const token = await getAccessToken(ebayConfig);
   const limit = Math.min((input.limit as number) ?? 25, 200);
 
-  // Use Trading API — sees ALL listings (website-created + API-created)
+  // Use Trading API â€” sees ALL listings (website-created + API-created)
   return getListingsViaTrading(token, limit);
 }
 
@@ -934,7 +934,7 @@ export async function handleBulkUpdatePrices(input: Record<string, unknown>): Pr
   if (preview) {
     return {
       success: true,
-      output: `PREVIEW — Price adjustment: ${changeDesc} (${changes.length} listings)\n\n${changeLines}\n\nRun again with preview=false to apply.`,
+      output: `PREVIEW â€” Price adjustment: ${changeDesc} (${changes.length} listings)\n\n${changeLines}\n\nRun again with preview=false to apply.`,
     };
   }
 
@@ -1020,7 +1020,7 @@ export async function handleEbayGetAuthUrl(): Promise<ToolResult> {
 
   return {
     success: true,
-    output: `Open this URL in a browser to authorize Bob with eBay:\n\n${url}\n\nAfter signing in, eBay will redirect to a URL containing a code parameter. Copy the ENTIRE redirect URL (or just the code= value) and pass it to ebay_exchange_code.\n\n⚠️ The authorization code expires in 5 minutes — use ebay_exchange_code immediately after.`,
+    output: `Open this URL in a browser to authorize Bob with eBay:\n\n${url}\n\nAfter signing in, eBay will redirect to a URL containing a code parameter. Copy the ENTIRE redirect URL (or just the code= value) and pass it to ebay_exchange_code.\n\nâš ï¸ The authorization code expires in 5 minutes â€” use ebay_exchange_code immediately after.`,
   };
 }
 
@@ -1037,23 +1037,31 @@ export async function handleEbayExchangeCode(input: Record<string, unknown>): Pr
     return { success: false, output: "EBAY_RUNAME must be set. Use set_env_var to configure it." };
   }
 
-  let code = String(input.code ?? "").trim();
-  if (!code) {
-    return { success: false, output: "No authorization code provided. Pass the code from the eBay redirect URL." };
-  }
-
-  // Extract code from full URL if the user pasted the whole redirect URL
+  const originalInput = String(input.code ?? "").trim();
+  let code = originalInput;
   if (code.includes("code=")) {
     try {
       const url = new URL(code);
       code = url.searchParams.get("code") ?? code;
     } catch {
-      // Try to extract code= parameter manually if URL parsing fails
       const match = code.match(/[?&]code=([^&]+)/);
       if (match) {
         code = decodeURIComponent(match[1]);
       }
     }
+  }
+  code = code.trim();
+
+  if (!code) {
+    return { success: false, output: "No authorization code provided. Pass the full redirect URL from eBay or the code value itself." };
+  }
+  if (/[?&]expires_in=299\b/.test(originalInput)) {
+    return {
+      success: false,
+      output:
+        "The provided value still looks like an eBay redirect payload instead of a clean authorization code. " +
+        "Pass the full redirect URL from the browser address bar and Bob will extract the code before exchanging it.",
+    };
   }
 
   const baseUrl = getBaseUrl(environment);
@@ -1079,38 +1087,86 @@ export async function handleEbayExchangeCode(input: Record<string, unknown>): Pr
       const error = data.error_description ?? data.error ?? `HTTP ${response.status}`;
       return {
         success: false,
-        output: `eBay token exchange failed: ${error}\n\nCommon causes:\n- Authorization code expired (5 min limit) — re-authorize with ebay_get_auth_url\n- Wrong RuName — check EBAY_RUNAME matches your app in the eBay Developer Portal\n- Wrong environment — check EBAY_ENVIRONMENT matches where you authorized (production vs sandbox)`,
+        output:
+          `eBay token exchange failed: ${error}\n\n` +
+          "Common causes:\n" +
+          "- Authorization code expired (5 minute limit) - re-authorize with ebay_get_auth_url\n" +
+          "- Wrong RuName - check EBAY_RUNAME matches your app in the eBay Developer Portal\n" +
+          "- Wrong environment - check EBAY_ENVIRONMENT matches where you authorized (production vs sandbox)",
       };
     }
 
-    const refreshToken = data.refresh_token as string | undefined;
-    const accessToken = data.access_token as string | undefined;
+    const refreshToken = typeof data.refresh_token === "string" ? data.refresh_token : "";
+    const accessToken = typeof data.access_token === "string" ? data.access_token : "";
+    const refreshTokenExpiresIn = data.refresh_token_expires_in;
+    const tokenType = typeof data.token_type === "string" ? data.token_type : "";
+    const responseKeys = Object.keys(data).join(", ");
 
-    if (!refreshToken) {
+    if (!refreshToken || !accessToken || refreshTokenExpiresIn === undefined) {
       return {
         success: false,
-        output: `eBay returned a response but no refresh_token was included. Got keys: ${Object.keys(data).join(", ")}. This may mean the OAuth scopes were insufficient — re-authorize with ebay_get_auth_url.`,
+        output:
+          `eBay returned an incomplete token response. Got keys: ${responseKeys}.\n\n` +
+          "Bob requires access_token, refresh_token, and refresh_token_expires_in before it will save anything.",
+      };
+    }
+
+    if (/[?&]expires_in=299\b/.test(refreshToken) || refreshToken.includes("code=")) {
+      return {
+        success: false,
+        output:
+          "eBay returned a refresh_token value that still looks like a redirect payload/code. " +
+          "Bob refused to save it.",
       };
     }
 
     await setEnvVarValue("EBAY_REFRESH_TOKEN", refreshToken);
+    const persistedRaw = readRawEnvValue("EBAY_REFRESH_TOKEN") ?? "";
+    if (persistedRaw !== refreshToken) {
+      return {
+        success: false,
+        output:
+          `eBay returned a refresh token, but Bob could not persist it exactly.\n\n` +
+          `Returned length: ${refreshToken.length} chars\n` +
+          `Saved length: ${persistedRaw.length} chars\n` +
+          `Response keys: ${responseKeys}`,
+      };
+    }
 
-    // Verify the token works by getting a fresh access token
-    let verified = false;
+    let verificationError = "";
     try {
-      const testToken = await getAccessToken({
+      await getAccessToken({
         clientId, clientSecret, refreshToken, environment, ruName,
       });
-      verified = !!testToken;
-    } catch { /* verification failed but token is saved */ }
+    } catch (err: unknown) {
+      verificationError = err instanceof Error ? err.message : String(err);
+    }
+
+    if (verificationError) {
+      return {
+        success: false,
+        output:
+          `eBay returned and Bob saved a refresh token, but immediate verification failed.\n\n` +
+          `Refresh token: ${refreshToken.slice(0, 10)}...${refreshToken.slice(-6)} (${refreshToken.length} chars)\n` +
+          `refresh_token_expires_in: ${String(refreshTokenExpiresIn)}\n` +
+          `token_type: ${tokenType || "unknown"}\n` +
+          `Response keys: ${responseKeys}\n` +
+          `Verification error: ${verificationError}\n\n` +
+          "Bob refused to report success because the saved refresh token could not mint a new access token.",
+      };
+    }
 
     return {
       success: true,
-      output: `eBay refresh token obtained and saved to .env!\n\n` +
+      output:
+        `eBay refresh token obtained, persisted, and verified.\n\n` +
         `Refresh token: ${refreshToken.slice(0, 10)}...${refreshToken.slice(-6)} (${refreshToken.length} chars)\n` +
-        `Access token: ${accessToken ? "✓ received" : "✗ not received"}\n` +
-        `Token verification: ${verified ? "✓ working — Bob can now use eBay!" : "⚠️ could not verify yet — try an eBay command to test"}\n\n` +
-        `The refresh token is valid for 18 months. No restart needed — it's already loaded.`,
+        `refresh_token_expires_in: ${String(refreshTokenExpiresIn)}\n` +
+        `token_type: ${tokenType || "unknown"}\n` +
+        `Response keys: ${responseKeys}\n` +
+        "Persisted token: exact match\n" +
+        "Token verification: working\n\n" +
+        "This is the stored long-lived refresh token path, not the short authorization code path.",
     };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
