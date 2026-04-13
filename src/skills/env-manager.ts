@@ -166,9 +166,15 @@ function normalizeEnvValue(key: string, rawValue: string): string {
   return value.trim();
 }
 
+function serializeEnvValue(value: string): string {
+  // Quote values so dotenv preserves characters like # in eBay refresh tokens.
+  return JSON.stringify(value);
+}
+
 export async function setEnvVarValue(key: string, value: string): Promise<{ found: boolean }> {
   const content = await readEnvFile();
   const lines = parseEnvLines(content);
+  const serializedValue = serializeEnvValue(value);
 
   let found = false;
   const updatedLines = lines.map((line) => {
@@ -178,14 +184,14 @@ export async function setEnvVarValue(key: string, value: string): Promise<{ foun
 
     if (uncommentedMatch || commentedMatch) {
       found = true;
-      return `${key}=${value}`;
+      return `${key}=${serializedValue}`;
     }
 
     return line;
   });
 
   if (!found) {
-    updatedLines.push(`${key}=${value}`);
+    updatedLines.push(`${key}=${serializedValue}`);
   }
 
   const newContent = updatedLines.join("\n").replace(/\n*$/, "\n");
