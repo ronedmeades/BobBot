@@ -63,13 +63,13 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
     keywords: [
       "ebay", "listing", "marketplace", "order", "ship", "seller",
       "etsy", "poshmark", "depop", "unshipped", "fulfillment",
-      "batch list", "standing rule", "sku",
+      "batch list", "standing rule", "sku", "oauth", "token", "connect", "authorize", "auth",
     ],
     toolNames: [
-      // eBay (8)
+      // eBay (10)
       "create_ebay_listing", "upload_ebay_image", "search_ebay_category",
       "generate_listing_content", "get_ebay_listing_status", "get_seller_listings",
-      "update_ebay_listing", "bulk_update_prices",
+      "update_ebay_listing", "bulk_update_prices", "ebay_get_auth_url", "ebay_exchange_code",
       // Batch (4)
       "batch_list_posters", "batch_list_status", "review_batch_samples", "approve_batch",
       // Marketplace (10)
