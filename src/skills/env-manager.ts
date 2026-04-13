@@ -146,6 +146,26 @@ function parseEnvLines(content: string): string[] {
   return content.split(/\r?\n/);
 }
 
+function normalizeEnvValue(key: string, rawValue: string): string {
+  let value = rawValue.trim();
+
+  // If the model/user passed KEY=value, keep only the RHS.
+  const prefixed = value.match(/^([A-Z0-9_]+)\s*=(.*)$/s);
+  if (prefixed && prefixed[1] === key) {
+    value = prefixed[2] ?? "";
+  }
+
+  // Strip one layer of matching quotes from pasted values.
+  if (
+    (value.startsWith('"') && value.endsWith('"')) ||
+    (value.startsWith("'") && value.endsWith("'"))
+  ) {
+    value = value.slice(1, -1);
+  }
+
+  return value.trim();
+}
+
 export async function setEnvVarValue(key: string, value: string): Promise<{ found: boolean }> {
   const content = await readEnvFile();
   const lines = parseEnvLines(content);
@@ -177,9 +197,9 @@ export async function setEnvVarValue(key: string, value: string): Promise<{ foun
 
 export async function handleSetEnvVar(input: Record<string, unknown>): Promise<ToolResult> {
   const key = (input.key as string)?.trim().toUpperCase();
-  const value = (input.value as string)?.trim();
+  const value = normalizeEnvValue(key, String(input.value ?? ""));
 
-  if (!key || value === undefined) {
+  if (!key || input.value === undefined) {
     return { success: false, output: "Both key and value are required." };
   }
 
@@ -200,6 +220,15 @@ export async function handleSetEnvVar(input: Record<string, unknown>): Promise<T
 
   if (!value) {
     return { success: false, output: `Value for ${key} cannot be empty.` };
+  }
+
+  if (key === "EBAY_REFRESH_TOKEN" && /[?&]code=/.test(value)) {
+    return {
+      success: false,
+      output:
+        "That looks like an eBay OAuth redirect URL or authorization code, not a refresh token. " +
+        "Use ebay_exchange_code with the redirect URL/code instead of set_env_var.",
+    };
   }
 
   const { found } = await setEnvVarValue(key, value);

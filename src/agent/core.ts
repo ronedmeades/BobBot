@@ -570,6 +570,48 @@ export function detectUnusedActions(
   return null;
 }
 
+function isBlockingToolError(toolName: string, content: string): boolean {
+  const lower = content.toLowerCase();
+  const blockingPatterns = [
+    "invalid_grant",
+    "authorization code expired",
+    "owner approval required",
+    "awaiting their owner's approval",
+    "not configured",
+    "must be set first",
+    "is not set",
+    "restart bob",
+    "use ebay_exchange_code",
+    "use ebay_get_auth_url",
+    "paste the address bar url back to me",
+    "access denied",
+    "unauthorized",
+    "forbidden",
+    "credential",
+    "api key",
+    "refresh token is expired or invalid",
+    "that looks like an ebay oauth redirect url or authorization code",
+  ];
+
+  if (blockingPatterns.some((pattern) => lower.includes(pattern))) {
+    return true;
+  }
+
+  // Direct credential/config tools failing are usually user-fix issues, not "try another branch" issues.
+  const blockingTools = new Set([
+    "set_env_var",
+    "ebay_get_auth_url",
+    "ebay_exchange_code",
+    "marketplace_test_connection",
+  ]);
+
+  return blockingTools.has(toolName) && (
+    lower.includes("failed") ||
+    lower.includes("error") ||
+    lower.includes("invalid")
+  );
+}
+
 async function runAgentInner(
   userId: string,
   userMessage: string,
@@ -672,6 +714,9 @@ async function runAgentInner(
   const toolsUsed: string[] = [];
   const toolCallSummaries: Array<{ tool: string; success: boolean; snippet: string }> = [];
   let rounds = 0;
+  let lastErrorKey: string | null = null;
+  let consecutiveErrorCount = 0;
+  const CIRCUIT_BREAKER_LIMIT = 2;
 
   // Build a pause message with context about what was done
   function buildPauseMessage(): string {
@@ -938,22 +983,44 @@ async function runAgentInner(
         return `- ${toolName}: ${errorPreview}`;
       });
 
-      const stopMsg =
-        `Stopped because a tool failed.\n\n${failedSummaries.join("\n\n")}\n\n` +
-        "I haven't continued past the error, so no more tokens are spent chasing it. Tell me what to try next once you've fixed the issue or want a different approach.";
+      const primaryFailedBlock = toolUseBlocks.find((block) => block.id === failedResults[0].tool_use_id);
+      const primaryToolName = primaryFailedBlock?.name ?? "unknown";
+      const primaryErrorPreview = failedResults[0].content.slice(0, 200);
+      const errorKey = `${primaryToolName}:${primaryErrorPreview}`;
 
-      console.log(`[agent:${runId}] stopped on tool error`);
+      if (errorKey === lastErrorKey) {
+        consecutiveErrorCount++;
+      } else {
+        lastErrorKey = errorKey;
+        consecutiveErrorCount = 1;
+      }
 
-      await memory.appendHistory(userId, {
-        role: "assistant",
-        content: stopMsg,
-        timestamp: new Date().toISOString(),
-      }, source);
+      const hasBlockingFailure = failedResults.some((result) => {
+        const failedBlock = toolUseBlocks.find((block) => block.id === result.tool_use_id);
+        return isBlockingToolError(failedBlock?.name ?? "unknown", result.content);
+      });
 
-      events.emitEvent("agent:status", { userId, status: "done", detail: "Tool error" });
-      events.emitEvent("message:out", { userId, text: stopMsg });
+      if (hasBlockingFailure || consecutiveErrorCount >= CIRCUIT_BREAKER_LIMIT) {
+        const stopMsg = hasBlockingFailure
+          ? `Stopped because a blocking tool error needs user action or config changes.\n\n${failedSummaries.join("\n\n")}\n\nFix that issue, then send me the next step.`
+          : `I'm stuck repeating the same failure.\n\n${failedSummaries.join("\n\n")}\n\nI stopped here so I don't burn more tokens retrying the same path.`;
 
-      return { text: stopMsg, toolsUsed };
+        console.log(`[agent:${runId}] stopped on ${hasBlockingFailure ? "blocking" : "repeated"} tool error`);
+
+        await memory.appendHistory(userId, {
+          role: "assistant",
+          content: stopMsg,
+          timestamp: new Date().toISOString(),
+        }, source);
+
+        events.emitEvent("agent:status", { userId, status: "done", detail: "Tool error" });
+        events.emitEvent("message:out", { userId, text: stopMsg });
+
+        return { text: stopMsg, toolsUsed };
+      }
+    } else {
+      lastErrorKey = null;
+      consecutiveErrorCount = 0;
     }
 
     // Add tool results to conversation
