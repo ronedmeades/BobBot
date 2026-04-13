@@ -207,6 +207,10 @@ Want to message Bob when you're away from your computer? Just ask him in the das
 
 Bob will walk you through the whole process step by step.
 
+Once Telegram is configured, Bob can also send you a direct Telegram message immediately when you ask things like:
+
+> *"Send Hilary a message on Telegram saying you're ready"*
+
 ---
 
 ## What Can Bob Do?
@@ -253,6 +257,7 @@ Bob has **170+ tools across 35 skill modules**, plus domain expertise from **11 
 
 **Communication:**
 - **Voice messages** — send Bob a voice note on Telegram, get text + voice reply back (Whisper STT + edge-tts TTS)
+- **Direct Telegram messages** — send an immediate Telegram message to the configured owner chat
 - **Phone calls** — Bob can call your phone and speak a message aloud (needs Twilio)
 - **SMS** — send text messages to your phone (needs Twilio)
 - **Send email** — via Gmail (needs Gmail API keys)
@@ -366,6 +371,26 @@ BOB_VOICE=en-GB-RyanNeural
 ```
 
 The default is a British male voice. See [Microsoft's voice list](https://learn.microsoft.com/en-us/azure/ai-services/speech-service/language-support) for alternatives.
+
+---
+
+## eBay OAuth Notes
+
+Bob's eBay OAuth flow is strict on purpose now.
+
+- Pass the **full redirect URL** from the browser back to `ebay_exchange_code` after sign-in, or pass the extracted `code` value
+- Bob now refuses to report success unless eBay returns:
+  - `access_token`
+  - `refresh_token`
+  - `refresh_token_expires_in`
+- Bob saves only the returned `refresh_token`, confirms the raw `.env` value matches exactly, and immediately tests that saved token with a refresh-token grant
+- If the pasted value still looks like a redirect payload such as `expires_in=299`, Bob should reject it instead of pretending setup succeeded
+
+Practical meaning:
+
+- `expires_in=299` is the short-lived authorization-code stage, not the stored long-lived credential
+- the value Bob stores for reuse is `EBAY_REFRESH_TOKEN`
+- eBay access tokens are minted from that refresh token as needed
 
 ---
 
