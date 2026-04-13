@@ -364,6 +364,7 @@ Background tasks:
 Notifications & escalation:
 - The dashboard ALWAYS shows task completion — no setup needed
 - External notifications (telegram, sms, call) only fire when the user explicitly asks: "text me when done", "call me if I don't respond"
+- If the user asks you to send them a Telegram message right now, use send_telegram_message.
 - Currently available notification channels: ${getAvailableChannels().join(", ") || "none (dashboard only)"}
 - ONLY offer channels that are listed as available above — never suggest a channel that isn't configured
 - notify_via sets the escalation ORDER: first channel fires immediately, if user doesn't respond, next fires after escalate_after_minutes

@@ -25,6 +25,7 @@ import { quickCaptureToolDefinitions } from "../skills/quick-capture.js";
 import { browserToolDefinitions } from "../skills/browser.js";
 import { stealthBrowserToolDefinitions } from "../skills/stealth-browser.js";
 import { phoneToolDefinitions } from "../skills/phone.js";
+import { telegramToolDefinitions } from "../skills/telegram.js";
 import { marketplaceToolDefinitions } from "../skills/marketplace.js";
 import { googleCalendarToolDefinitions } from "../skills/google-calendar.js";
 import { envManagerToolDefinitions } from "../skills/env-manager.js";
@@ -327,6 +328,8 @@ const builtinTools: ToolDefinition[] = [
   ...stealthBrowserToolDefinitions,
   // Phone calls & SMS (Twilio)
   ...phoneToolDefinitions,
+  // Direct Telegram messaging
+  ...telegramToolDefinitions,
   // Marketplace engine (eBay, Etsy, Poshmark, local adapters)
   ...marketplaceToolDefinitions,
   // Google Calendar

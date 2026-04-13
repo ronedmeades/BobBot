@@ -166,6 +166,7 @@ import {
   handleSendSms,
   handleGetCallStatus,
 } from "../skills/phone.js";
+import { handleSendTelegramMessage } from "../skills/telegram.js";
 import {
   handleMarketplaceListPlatforms,
   handleMarketplaceTestConnection,
@@ -600,6 +601,8 @@ export async function executeTool(
         return await handleCallOwner(input);
       case "send_sms":
         return await handleSendSms(input);
+      case "send_telegram_message":
+        return await handleSendTelegramMessage(input);
       case "get_call_status":
         return await handleGetCallStatus(input);
       // Marketplace engine
