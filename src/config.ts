@@ -1,6 +1,8 @@
-import "dotenv/config";
 import type { DiscoveryMode, TrustTier } from "./a2a/types.js";
+import { getEnvValue, loadEnvFile } from "./env.js";
 import type { LLMConfig } from "./providers/types.js";
+
+loadEnvFile();
 
 export type CostMode = "primary" | "balanced";
 
@@ -11,7 +13,7 @@ const DEFAULT_MODELS: Record<string, string> = {
 };
 
 function getPrimaryProvider(): string {
-  return (process.env.PRIMARY_LLM_PROVIDER ?? "anthropic").toLowerCase();
+  return (getEnvValue("PRIMARY_LLM_PROVIDER") || "anthropic").toLowerCase();
 }
 
 export const config = {
@@ -20,11 +22,11 @@ export const config = {
       return getPrimaryProvider();
     },
     get apiKey(): string {
-      return process.env.PRIMARY_LLM_API_KEY ?? "";
+      return getEnvValue("PRIMARY_LLM_API_KEY");
     },
     get model(): string {
       const provider = getPrimaryProvider();
-      return process.env.PRIMARY_LLM_MODEL ?? DEFAULT_MODELS[provider] ?? "claude-opus-4-6";
+      return getEnvValue("PRIMARY_LLM_MODEL") || DEFAULT_MODELS[provider] || "claude-opus-4-6";
     },
     get baseUrl(): string | undefined {
       return undefined;
@@ -32,56 +34,56 @@ export const config = {
   } satisfies LLMConfig,
   /** Secondary LLM for balanced mode. Getter reads process.env live so set_env_var hot-reload works. */
   get secondaryLlm(): LLMConfig | null {
-    const p = process.env.SECONDARY_LLM_PROVIDER?.toLowerCase();
-    const k = process.env.SECONDARY_LLM_API_KEY;
+    const p = getEnvValue("SECONDARY_LLM_PROVIDER")?.toLowerCase();
+    const k = getEnvValue("SECONDARY_LLM_API_KEY");
     if (!p || !k) return null;
     return {
       provider: p,
       apiKey: k,
-      model: process.env.SECONDARY_LLM_MODEL ?? DEFAULT_MODELS[p] ?? "",
-      baseUrl: process.env.SECONDARY_LLM_BASE_URL || undefined,
+      model: getEnvValue("SECONDARY_LLM_MODEL") || DEFAULT_MODELS[p] || "",
+      baseUrl: getEnvValue("SECONDARY_LLM_BASE_URL") || undefined,
     };
   },
   /** Coding brain — dedicated model for code tasks. Defaults to Claude Opus 4.6. Getter reads process.env live. */
   get codingLlm(): LLMConfig | null {
-    const k = process.env.CODING_LLM_API_KEY;
+    const k = getEnvValue("CODING_LLM_API_KEY");
     if (!k) return null;
-    const p = (process.env.CODING_LLM_PROVIDER ?? "anthropic").toLowerCase();
+    const p = (getEnvValue("CODING_LLM_PROVIDER") || "anthropic").toLowerCase();
     return {
       provider: p,
       apiKey: k,
-      model: process.env.CODING_LLM_MODEL ?? "claude-opus-4-6",
+      model: getEnvValue("CODING_LLM_MODEL") || "claude-opus-4-6",
     };
   },
   costMode: {
     get default(): CostMode {
-      const mode = process.env.DEFAULT_COST_MODE?.toLowerCase();
+      const mode = getEnvValue("DEFAULT_COST_MODE")?.toLowerCase();
       if (mode === "balanced") return "balanced";
       return "primary";
     },
   },
   telegram: {
     get botToken(): string {
-      return process.env.TELEGRAM_BOT_TOKEN ?? "";
+      return getEnvValue("TELEGRAM_BOT_TOKEN");
     },
   },
   owner: {
     get userId(): string {
-      return process.env.OWNER_USER_ID || "owner";
+      return getEnvValue("OWNER_USER_ID") || "owner";
     },
     get name(): string {
-      return process.env.OWNER_NAME ?? "Owner";
+      return getEnvValue("OWNER_NAME") || "Owner";
     },
     get notes(): string {
-      return process.env.OWNER_NOTES ?? "";
+      return getEnvValue("OWNER_NOTES");
     },
     get timezone(): string {
-      return process.env.OWNER_TIMEZONE ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+      return getEnvValue("OWNER_TIMEZONE") || Intl.DateTimeFormat().resolvedOptions().timeZone;
     },
   },
   dashboard: {
     get apiToken(): string {
-      return process.env.BOB_API_TOKEN ?? "";
+      return getEnvValue("BOB_API_TOKEN");
     },
   },
   agent: {
@@ -90,30 +92,30 @@ export const config = {
   },
   homeAssistant: {
     get url(): string {
-      return process.env.HA_URL ?? "http://localhost:8123";
+      return getEnvValue("HA_URL") || "http://localhost:8123";
     },
     get token(): string {
-      return process.env.HA_TOKEN ?? "";
+      return getEnvValue("HA_TOKEN");
     },
   },
   a2a: {
     get enabled(): boolean {
-      return !!process.env.A2A_ENABLED;
+      return !!getEnvValue("A2A_ENABLED");
     },
     get discoveryMode(): DiscoveryMode {
-      return (process.env.A2A_DISCOVERY_MODE ?? "handshake") as DiscoveryMode;
+      return (getEnvValue("A2A_DISCOVERY_MODE") || "handshake") as DiscoveryMode;
     },
     get publicUrl(): string {
-      return process.env.A2A_PUBLIC_URL ?? "";
+      return getEnvValue("A2A_PUBLIC_URL");
     },
     get agentName(): string {
-      return process.env.A2A_AGENT_NAME ?? (process.env.OWNER_NAME ? `${process.env.OWNER_NAME}'s Bob` : "Bob");
+      return getEnvValue("A2A_AGENT_NAME") || (getEnvValue("OWNER_NAME") ? `${getEnvValue("OWNER_NAME")}'s Bob` : "Bob");
     },
     get defaultTrustTier(): TrustTier {
-      return (process.env.A2A_DEFAULT_TRUST ?? "manual") as TrustTier;
+      return (getEnvValue("A2A_DEFAULT_TRUST") || "manual") as TrustTier;
     },
     get approvalTimeoutMin(): number {
-      return Number(process.env.A2A_APPROVAL_TIMEOUT_MIN) || 30;
+      return Number(getEnvValue("A2A_APPROVAL_TIMEOUT_MIN")) || 30;
     },
     maxRequestBodyBytes: 1_048_576, // 1MB
   },

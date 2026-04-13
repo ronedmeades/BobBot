@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { getEnvValue } from "../env.js";
 import { setEnvVarValue } from "./env-manager.js";
 
 // eBay API integration for creating and managing listings.
@@ -20,10 +21,10 @@ export interface EbayConfig {
 }
 
 export function getEbayConfig(): EbayConfig {
-  const clientId = process.env.EBAY_CLIENT_ID ?? "";
-  const clientSecret = process.env.EBAY_CLIENT_SECRET ?? "";
-  const refreshToken = process.env.EBAY_REFRESH_TOKEN ?? "";
-  const environment = (process.env.EBAY_ENVIRONMENT ?? "sandbox") as "sandbox" | "production";
+  const clientId = getEnvValue("EBAY_CLIENT_ID");
+  const clientSecret = getEnvValue("EBAY_CLIENT_SECRET");
+  const refreshToken = getEnvValue("EBAY_REFRESH_TOKEN");
+  const environment = (getEnvValue("EBAY_ENVIRONMENT") || "sandbox") as "sandbox" | "production";
 
   if (!clientId || !clientSecret || !refreshToken) {
     throw new Error(
@@ -31,7 +32,7 @@ export function getEbayConfig(): EbayConfig {
     );
   }
 
-  const ruName = process.env.EBAY_RUNAME ?? "";
+  const ruName = getEnvValue("EBAY_RUNAME");
 
   return { clientId, clientSecret, refreshToken, environment, ruName };
 }
@@ -992,9 +993,9 @@ export async function handleBulkUpdatePrices(input: Record<string, unknown>): Pr
 // --- eBay OAuth helpers ---
 
 export async function handleEbayGetAuthUrl(): Promise<ToolResult> {
-  const clientId = process.env.EBAY_CLIENT_ID ?? "";
-  const ruName = process.env.EBAY_RUNAME ?? "";
-  const environment = (process.env.EBAY_ENVIRONMENT ?? "sandbox") as "sandbox" | "production";
+  const clientId = getEnvValue("EBAY_CLIENT_ID");
+  const ruName = getEnvValue("EBAY_RUNAME");
+  const environment = (getEnvValue("EBAY_ENVIRONMENT") || "sandbox") as "sandbox" | "production";
 
   if (!clientId) {
     return { success: false, output: "EBAY_CLIENT_ID is not set. Use set_env_var to configure it first." };
@@ -1024,10 +1025,10 @@ export async function handleEbayGetAuthUrl(): Promise<ToolResult> {
 }
 
 export async function handleEbayExchangeCode(input: Record<string, unknown>): Promise<ToolResult> {
-  const clientId = process.env.EBAY_CLIENT_ID ?? "";
-  const clientSecret = process.env.EBAY_CLIENT_SECRET ?? "";
-  const ruName = process.env.EBAY_RUNAME ?? "";
-  const environment = (process.env.EBAY_ENVIRONMENT ?? "sandbox") as "sandbox" | "production";
+  const clientId = getEnvValue("EBAY_CLIENT_ID");
+  const clientSecret = getEnvValue("EBAY_CLIENT_SECRET");
+  const ruName = getEnvValue("EBAY_RUNAME");
+  const environment = (getEnvValue("EBAY_ENVIRONMENT") || "sandbox") as "sandbox" | "production";
 
   if (!clientId || !clientSecret) {
     return { success: false, output: "EBAY_CLIENT_ID and EBAY_CLIENT_SECRET must be set first. Use set_env_var to configure them." };

@@ -1,5 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { ENV_PATH } from "../env.js";
 import type { ToolDefinition } from "../providers/types.js";
 
 interface ToolResult {
@@ -61,7 +61,6 @@ const ALLOWED_KEYS = new Set([
   "A2A_APPROVAL_TIMEOUT_MIN",
 ]);
 
-const ENV_PATH = resolve(".env");
 const RESTART_REQUIRED_KEYS = new Set([
   "TELEGRAM_BOT_TOKEN",
   "OWNER_USER_ID",
