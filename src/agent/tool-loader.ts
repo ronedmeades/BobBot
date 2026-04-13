@@ -66,10 +66,11 @@ export const TOOL_CATEGORIES: ToolCategory[] = [
       "batch list", "standing rule", "sku", "oauth", "token", "connect", "authorize", "auth",
     ],
     toolNames: [
-      // eBay (10)
+      // eBay (10) + env tools for token saving
       "create_ebay_listing", "upload_ebay_image", "search_ebay_category",
       "generate_listing_content", "get_ebay_listing_status", "get_seller_listings",
       "update_ebay_listing", "bulk_update_prices", "ebay_get_auth_url", "ebay_exchange_code",
+      "set_env_var", "list_env_keys",
       // Batch (4)
       "batch_list_posters", "batch_list_status", "review_batch_samples", "approve_batch",
       // Marketplace (10)
